@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.cuidalink.viewmodel.GameViewModel
@@ -26,6 +27,7 @@ fun ContactsScreen(
     viewModel: GameViewModel
 ) {
     val state by viewModel.gameState.collectAsState()
+    val context = LocalContext.current
 
     Column(modifier = modifier.fillMaxSize()) {
         Text(
@@ -33,6 +35,10 @@ fun ContactsScreen(
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.padding(16.dp)
         )
+
+        if (state.isLoading) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        }
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -44,7 +50,7 @@ fun ContactsScreen(
                     contactName = contact.name,
                     photoUri = contact.photoUri,
                     onPhotoSelected = { uri ->
-                        viewModel.updateContactPhoto(contact.id, uri)
+                        viewModel.updateContactPhoto(contact.id, uri, context.contentResolver)
                     }
                 )
             }

@@ -1,6 +1,7 @@
 package com.example.cuidalink
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -13,16 +14,29 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.cuidalink.network.SupabaseConfig
 import com.example.cuidalink.ui.ContactsScreen
 import com.example.cuidalink.ui.GameScreen
 import com.example.cuidalink.ui.theme.CuidaLinkTheme
 import com.example.cuidalink.viewmodel.GameViewModel
+import io.github.jan.supabase.auth.auth
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
+            // Manejamos el inicio de sesión con seguridad para evitar crasheos
+            LaunchedEffect(Unit) {
+                try {
+                    SupabaseConfig.client.auth.signInAnonymously()
+                    Log.d("Supabase", "Sesión anónima iniciada")
+                } catch (e: Exception) {
+                    Log.e("Supabase", "Error al iniciar sesión: ${e.message}")
+                    // No relanzamos la excepción para evitar el crash
+                }
+            }
+
             CuidaLinkTheme {
                 val viewModel: GameViewModel = viewModel()
                 var selectedTab by remember { mutableIntStateOf(0) }

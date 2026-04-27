@@ -3,9 +3,13 @@ package com.example.cuidalink.viewmodel
 import android.content.ContentResolver
 import android.net.Uri
 import android.provider.ContactsContract
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.cuidalink.model.Contact
+import com.example.cuidalink.network.SupabaseConfig
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -61,17 +65,46 @@ class GameViewModel : ViewModel() {
                     }
                 }
             }
+
+            // Sincronizar con Supabase Storage
+            val syncedContacts = syncWithSupabase(contacts)
             
-            val shuffledWithPhoto = contacts.filter { it.photoUri != null }.shuffled()
+            val shuffledWithPhoto = syncedContacts.filter { it.photoUri != null }.shuffled()
             availableContacts = shuffledWithPhoto
             
             _gameState.value = _gameState.value.copy(
                 isLoading = false, 
                 score = 0, 
                 isGameOver = false,
-                allContacts = contacts.sortedBy { it.name }
+                allContacts = syncedContacts.sortedBy { it.name }
             )
             nextQuestion()
+        }
+    }
+
+    private suspend fun syncWithSupabase(localContacts: List<Contact>): List<Contact> {
+        return try {
+            val user = SupabaseConfig.client.auth.currentUserOrNull() ?: return localContacts
+            val uid = user.id
+            val bucket = SupabaseConfig.client.storage.from("contacts")
+            
+            // Listar archivos en la carpeta del usuario
+            val remoteFiles = bucket.list(uid)
+            
+            localContacts.map { contact ->
+                val remoteFileName = "contact_${contact.id}.jpg"
+                val hasRemotePhoto = remoteFiles.any { it.name == remoteFileName }
+                
+                if (hasRemotePhoto) {
+                    val publicUrl = bucket.publicUrl("$uid/$remoteFileName")
+                    contact.copy(photoUri = Uri.parse(publicUrl))
+                } else {
+                    contact
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("GameViewModel", "Error sincronizando con Supabase: ${e.message}")
+            localContacts
         }
     }
 
@@ -122,12 +155,46 @@ class GameViewModel : ViewModel() {
         }
     }
 
-    fun updateContactPhoto(contactId: String, newPhotoUri: Uri) {
-        // En una app real, aquí subiríamos al storage y actualizaríamos la DB.
-        // Por ahora simulamos la actualización en la lista local.
-        val updatedContacts = _gameState.value.allContacts.map {
-            if (it.id == contactId) it.copy(photoUri = newPhotoUri) else it
+    fun updateContactPhoto(contactId: String, newPhotoUri: Uri, contentResolver: ContentResolver) {
+        viewModelScope.launch {
+            try {
+                _gameState.value = _gameState.value.copy(isLoading = true)
+                
+                val user = SupabaseConfig.client.auth.currentUserOrNull() ?: throw Exception("Usuario no autenticado")
+                val uid = user.id
+
+                val inputStream = contentResolver.openInputStream(newPhotoUri)
+                val bytes = inputStream?.readBytes() ?: throw Exception("No se pudo leer la imagen")
+                inputStream.close()
+
+                val fileName = "$uid/contact_$contactId.jpg"
+                val bucket = SupabaseConfig.client.storage.from("contacts")
+                
+                bucket.upload(fileName, bytes) {
+                    upsert = true
+                }
+
+                val publicUrl = bucket.publicUrl(fileName)
+                val remoteUri = Uri.parse(publicUrl)
+
+                val updatedContacts = _gameState.value.allContacts.map {
+                    if (it.id == contactId) it.copy(photoUri = remoteUri) else it
+                }
+                
+                // Actualizar también la lista de disponibles para el juego
+                availableContacts = updatedContacts.filter { it.photoUri != null }.shuffled()
+
+                _gameState.value = _gameState.value.copy(
+                    allContacts = updatedContacts.sortedBy { it.name },
+                    isLoading = false,
+                    message = "Imagen actualizada en la nube"
+                )
+            } catch (e: Exception) {
+                _gameState.value = _gameState.value.copy(
+                    isLoading = false,
+                    message = "Error al subir: ${e.message}"
+                )
+            }
         }
-        _gameState.value = _gameState.value.copy(allContacts = updatedContacts)
     }
 }
