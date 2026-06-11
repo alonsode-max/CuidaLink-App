@@ -66,11 +66,9 @@ class MainActivity : ComponentActivity() {
                         permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
                     }
                 }
-                
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    // Este permiso suele otorgarse al instalar, pero lo incluimos por seguridad
-                    permissionsToRequest.add(Manifest.permission.USE_FULL_SCREEN_INTENT)
-                }
+                // USE_FULL_SCREEN_INTENT no es un permiso de runtime: pedirlo con el
+                // diálogo hacía que la solicitud entera se marcara como denegada y
+                // bloqueaba la notificación de la alarma. Queda declarado en el manifest.
 
                 if (permissionsToRequest.isNotEmpty()) {
                     permissionLauncher.launch(permissionsToRequest.toTypedArray())
