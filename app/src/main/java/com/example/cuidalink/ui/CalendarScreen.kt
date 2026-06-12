@@ -63,8 +63,6 @@ import java.time.format.TextStyle
 import java.util.Locale
 import kotlin.math.abs
 
-private val spanishLocale = Locale("es", "ES")
-
 @Composable
 fun CalendarScreen(
     modifier: Modifier = Modifier,
@@ -86,7 +84,7 @@ fun CalendarScreen(
                 onClick = { showAddEventModal = true },
                 containerColor = CuidaGreen,
                 contentColor = Color.White,
-                shape = RoundedCornerShape(18.dp)
+                shape = RoundedCornerShape(percent = 50)
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Añadir evento")
             }
@@ -350,8 +348,8 @@ private fun AgendaEventCard(event: Event, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .border(1.dp, CuidaBorder, RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(24.dp))
+            .border(1.dp, CuidaBorder, RoundedCornerShape(24.dp))
             .clickable(role = Role.Button, onClick = onClick)
             .semantics {
                 contentDescription = "Evento ${event.name} a las ${event.time.format(DateTimeFormatter.ofPattern("HH:mm"))}"
@@ -400,50 +398,6 @@ private fun AgendaEventCard(event: Event, onClick: () -> Unit) {
     }
 }
 
-private fun Event.occursOn(date: LocalDate): Boolean {
-    return if (isRecurring) recurringDays.contains(date.dayOfWeek.value) else dates.contains(date)
-}
-
-// Icono y color según el tipo de actividad detectado en el nombre del evento,
-// imitando las categorías de color del diseño (verde, ámbar, azul).
-private data class EventStyle(
-    val icon: ImageVector,
-    val color: Color,
-    val container: Color
-)
-
-private fun eventStyleFor(name: String): EventStyle {
-    val normalized = name.lowercase(spanishLocale)
-    fun matches(vararg keywords: String) = keywords.any { normalized.contains(it) }
-
-    return when {
-        matches("medic", "pastilla", "insulina", "jarabe", "dosis", "tomar", "vitamina") ->
-            EventStyle(Icons.Filled.Medication, CuidaAmber, CuidaAmberSurface)
-        matches("paseo", "pasear", "caminar", "andar", "parque") ->
-            EventStyle(Icons.AutoMirrored.Filled.DirectionsWalk, CuidaBlue, CuidaBlueSurface)
-        matches("cita", "médico", "medico", "doctor", "hospital", "consulta", "revisión", "revision") ->
-            EventStyle(Icons.Filled.MedicalServices, CuidaGreen, CuidaGreenSurface)
-        matches("comida", "comer", "desayuno", "cena", "almuerzo", "merienda") ->
-            EventStyle(Icons.Filled.Restaurant, CuidaRed, Color(0xFFFCEAE8))
-        matches("ejercicio", "gimnasia", "deporte", "yoga", "estiramiento") ->
-            EventStyle(Icons.Filled.FitnessCenter, CuidaBlue, CuidaBlueSurface)
-        matches("llamar", "llamada", "teléfono", "telefono", "videollamada") ->
-            EventStyle(Icons.Filled.Call, CuidaGreen, CuidaGreenSurface)
-        matches("juego", "jugar", "memoria") ->
-            EventStyle(Icons.Filled.Extension, CuidaAmber, CuidaAmberSurface)
-        else -> {
-            // Sin categoría conocida: color estable derivado del nombre,
-            // para que eventos distintos no compartan todos el mismo color.
-            val fallbackPalette = listOf(
-                EventStyle(Icons.Filled.Event, CuidaGreen, CuidaGreenSurface),
-                EventStyle(Icons.Filled.Event, CuidaAmber, CuidaAmberSurface),
-                EventStyle(Icons.Filled.Event, CuidaBlue, CuidaBlueSurface)
-            )
-            fallbackPalette[abs(name.hashCode()) % fallbackPalette.size]
-        }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEventDialog(initialDate: LocalDate, onDismiss: () -> Unit, onSave: (Event) -> Unit) {
@@ -461,7 +415,7 @@ fun AddEventDialog(initialDate: LocalDate, onDismiss: () -> Unit, onSave: (Event
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(28.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
             Column(modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
@@ -478,7 +432,7 @@ fun AddEventDialog(initialDate: LocalDate, onDismiss: () -> Unit, onSave: (Event
                     onValueChange = { name = it },
                     label = { Text("Nombre del evento") },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = RoundedCornerShape(18.dp)
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -489,7 +443,7 @@ fun AddEventDialog(initialDate: LocalDate, onDismiss: () -> Unit, onSave: (Event
                     label = { Text("Descripción (opcional)") },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
-                    shape = RoundedCornerShape(14.dp)
+                    shape = RoundedCornerShape(18.dp)
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -505,7 +459,7 @@ fun AddEventDialog(initialDate: LocalDate, onDismiss: () -> Unit, onSave: (Event
                             }, initialDate.year, initialDate.monthValue - 1, initialDate.dayOfMonth).show()
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = CuidaGreenSurface, contentColor = CuidaGreenDark),
-                        shape = RoundedCornerShape(14.dp)
+                        shape = RoundedCornerShape(percent = 50)
                     ) {
                         Text("Añadir día", fontWeight = FontWeight.Bold)
                     }
@@ -602,7 +556,7 @@ fun AddEventDialog(initialDate: LocalDate, onDismiss: () -> Unit, onSave: (Event
                         },
                         enabled = name.isNotBlank() && (isRecurring && selectedDays.isNotEmpty() || !isRecurring),
                         colors = ButtonDefaults.buttonColors(containerColor = CuidaGreen),
-                        shape = RoundedCornerShape(14.dp)
+                        shape = RoundedCornerShape(percent = 50)
                     ) {
                         Text("Guardar", fontWeight = FontWeight.ExtraBold)
                     }
@@ -624,7 +578,7 @@ fun EventDetailsDialog(
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(28.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
@@ -699,7 +653,7 @@ fun EventDetailsDialog(
                     Button(
                         onClick = onDismiss,
                         colors = ButtonDefaults.buttonColors(containerColor = CuidaGreen),
-                        shape = RoundedCornerShape(14.dp)
+                        shape = RoundedCornerShape(percent = 50)
                     ) { Text("Cerrar", fontWeight = FontWeight.Bold) }
                 }
             }

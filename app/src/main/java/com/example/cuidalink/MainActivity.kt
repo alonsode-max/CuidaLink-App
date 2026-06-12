@@ -18,19 +18,29 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.ContactPage
-import androidx.compose.material.icons.filled.Games
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
 import com.example.cuidalink.network.SupabaseConfig
 import com.example.cuidalink.ui.CalendarScreen
+import com.example.cuidalink.ui.CognitiveCenterScreen
 import com.example.cuidalink.ui.ContactsScreen
+import com.example.cuidalink.ui.DashboardScreen
+import com.example.cuidalink.ui.FloatingNavBar
+import com.example.cuidalink.ui.FloatingNavItem
 import com.example.cuidalink.ui.GameScreen
+import com.example.cuidalink.ui.ProfileScreen
 import com.example.cuidalink.ui.theme.CuidaLinkTheme
+import com.example.cuidalink.viewmodel.CalendarViewModel
 import com.example.cuidalink.viewmodel.GameViewModel
 import io.github.jan.supabase.auth.auth
 
@@ -84,38 +94,86 @@ class MainActivity : ComponentActivity() {
             }
 
             CuidaLinkTheme {
-                val viewModel: GameViewModel = viewModel()
-                var selectedTab by remember { mutableIntStateOf(0) }
+                // ViewModels a nivel de actividad para que su estado se comparta
+                // entre pantallas (el dashboard lee los eventos del calendario).
+                val gameViewModel: GameViewModel = viewModel()
+                val calendarViewModel: CalendarViewModel = viewModel()
+
+                val navController = rememberNavController()
+                val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+
+                // Pestañas principales. El juego de contactos ya no está en
+                // la barra: se llega desde el Centro de estimulación cognitiva
+                // (pestaña Entrenamiento). Perfil, contactos y el juego se
+                // muestran sin barra para evitar distracciones.
+                val bottomBarRoutes = setOf("inicio", "entrenamiento", "calendario")
+
+                val navItems = listOf(
+                    FloatingNavItem("inicio", "Inicio", Icons.Default.Home),
+                    FloatingNavItem("entrenamiento", "Entrenamiento", Icons.Default.Psychology),
+                    FloatingNavItem("calendario", "Calendario", Icons.Default.CalendarMonth)
+                )
+
+                fun navigateToTab(route: String) {
+                    navController.navigate(route) {
+                        popUpTo("inicio") { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                }
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     bottomBar = {
-                        NavigationBar {
-                            NavigationBarItem(
-                                icon = { Icon(Icons.Default.Games, contentDescription = null) },
-                                label = { Text("Juego") },
-                                selected = selectedTab == 0,
-                                onClick = { selectedTab = 0 }
-                            )
-                            NavigationBarItem(
-                                icon = { Icon(Icons.Default.CalendarMonth, contentDescription = null) },
-                                label = { Text("Calendario") },
-                                selected = selectedTab == 1,
-                                onClick = { selectedTab = 1 }
-                            )
-                            NavigationBarItem(
-                                icon = { Icon(Icons.Default.ContactPage, contentDescription = null) },
-                                label = { Text("Contactos") },
-                                selected = selectedTab == 2,
-                                onClick = { selectedTab = 2 }
+                        if (currentRoute in bottomBarRoutes) {
+                            // Barra flotante estilo One UI: píldora con padding
+                            // lateral e inferior, despegada de los bordes.
+                            FloatingNavBar(
+                                items = navItems,
+                                currentRoute = currentRoute,
+                                onNavigate = { route -> navigateToTab(route) }
                             )
                         }
                     }
                 ) { innerPadding ->
-                    when (selectedTab) {
-                        0 -> GameScreen(Modifier.padding(innerPadding), viewModel)
-                        1 -> CalendarScreen(Modifier.padding(innerPadding))
-                        2 -> ContactsScreen(Modifier.padding(innerPadding), viewModel)
+                    NavHost(
+                        navController = navController,
+                        startDestination = "inicio",
+                        modifier = Modifier.padding(innerPadding)
+                    ) {
+                        composable("inicio") {
+                            DashboardScreen(
+                                calendarViewModel = calendarViewModel,
+                                onOpenCalendar = { navigateToTab("calendario") },
+                                onOpenProfile = { navController.navigate("perfil") },
+                                onPlay = { navigateToTab("entrenamiento") }
+                            )
+                        }
+                        composable("entrenamiento") {
+                            CognitiveCenterScreen(
+                                onPlayGame = { navController.navigate("juego") }
+                            )
+                        }
+                        composable("juego") {
+                            // Pantalla de juego a foco completo (sin barra),
+                            // accesible solo desde el centro de entrenamiento.
+                            GameScreen(
+                                viewModel = gameViewModel,
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+                        composable("calendario") {
+                            CalendarScreen(viewModel = calendarViewModel)
+                        }
+                        composable("perfil") {
+                            ProfileScreen(
+                                onBack = { navController.popBackStack() },
+                                onOpenContacts = { navController.navigate("contactos") }
+                            )
+                        }
+                        composable("contactos") {
+                            ContactsScreen(viewModel = gameViewModel)
+                        }
                     }
                 }
             }

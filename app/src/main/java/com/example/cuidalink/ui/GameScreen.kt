@@ -9,8 +9,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,7 +41,8 @@ import com.example.cuidalink.viewmodel.GameViewModel
 @Composable
 fun GameScreen(
     modifier: Modifier = Modifier,
-    viewModel: GameViewModel = viewModel()
+    viewModel: GameViewModel = viewModel(),
+    onBack: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val state by viewModel.gameState.collectAsState()
@@ -74,6 +78,7 @@ fun GameScreen(
             .fillMaxSize()
             .background(CuidaGameBackground)
     ) {
+        GameTopBar(onBack = onBack)
         when {
             !hasContactPermission -> PermissionRequest(onRequest = { launcher.launch(Manifest.permission.READ_CONTACTS) })
             state.isLoading -> LoadingIndicator()
@@ -95,6 +100,43 @@ fun GameScreen(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun GameTopBar(onBack: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 22.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .shadow(4.dp, CircleShape, spotColor = CuidaTextPrimary.copy(alpha = 0.2f))
+                .clip(CircleShape)
+                .background(Color.White)
+                .clickable(role = Role.Button, onClick = onBack)
+                .semantics { contentDescription = "Volver al centro de entrenamiento" },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = null,
+                tint = CuidaTextPrimary
+            )
+        }
+        Text(
+            text = "Identificar familiar",
+            modifier = Modifier.weight(1f),
+            textAlign = TextAlign.Center,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = CuidaTextPrimary
+        )
+        // Hueco simétrico para que el título quede centrado.
+        Spacer(modifier = Modifier.size(48.dp))
     }
 }
 
@@ -144,7 +186,7 @@ private fun GameOverContent(score: Int, message: String?, onRestart: () -> Unit)
         Spacer(modifier = Modifier.height(12.dp))
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(18.dp))
+                .clip(RoundedCornerShape(24.dp))
                 .background(CuidaGreenSurface)
                 .padding(horizontal = 24.dp, vertical = 14.dp)
         ) {
@@ -185,18 +227,7 @@ private fun GameQuestionContent(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 26.dp)
     ) {
-        Spacer(modifier = Modifier.height(14.dp))
-
-        Text(
-            text = "Identificar familiar",
-            modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.Center,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = CuidaTextPrimary
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
         GameProgressBar(questionNumber = questionNumber, totalQuestions = totalQuestions)
 
@@ -217,8 +248,8 @@ private fun GameQuestionContent(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .shadow(8.dp, RoundedCornerShape(24.dp), spotColor = CuidaTextPrimary.copy(alpha = 0.25f))
-                .clip(RoundedCornerShape(24.dp))
+                .shadow(8.dp, RoundedCornerShape(28.dp), spotColor = CuidaTextPrimary.copy(alpha = 0.25f))
+                .clip(RoundedCornerShape(28.dp))
                 .background(Color.White)
                 .padding(12.dp)
         ) {
@@ -228,7 +259,7 @@ private fun GameQuestionContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(180.dp)
-                    .clip(RoundedCornerShape(18.dp))
+                    .clip(RoundedCornerShape(24.dp))
                     .background(CuidaGreenSurface),
                 contentScale = ContentScale.Crop
             )
@@ -240,7 +271,7 @@ private fun GameQuestionContent(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
+                    .clip(RoundedCornerShape(24.dp))
                     .background(if (isCorrect) CuidaGreenSurface else Color(0xFFFCEAE8))
                     .padding(horizontal = 16.dp, vertical = 13.dp)
             ) {
@@ -329,12 +360,12 @@ private fun AnswerOptionCard(text: String, isSelected: Boolean, onClick: () -> U
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
-            .clip(RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(percent = 50))
             .background(if (isSelected) CuidaGreenSurface else Color.White)
             .border(
                 width = if (isSelected) 2.dp else 1.5.dp,
                 color = if (isSelected) CuidaGreen else CuidaBorderLight,
-                shape = RoundedCornerShape(24.dp)
+                shape = RoundedCornerShape(percent = 50)
             )
             .clickable(role = Role.Button, onClick = onClick)
             .semantics {
@@ -362,7 +393,7 @@ private fun PrimaryActionButton(text: String, enabled: Boolean = true, onClick: 
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(percent = 50),
         colors = ButtonDefaults.buttonColors(
             containerColor = CuidaGreen,
             contentColor = Color.White,
