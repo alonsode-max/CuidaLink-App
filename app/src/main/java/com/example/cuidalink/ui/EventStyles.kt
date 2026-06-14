@@ -1,17 +1,9 @@
 package com.example.cuidalink.ui
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.Event
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.FitnessCenter
-import androidx.compose.material.icons.filled.MedicalServices
-import androidx.compose.material.icons.filled.Medication
-import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.example.cuidalink.model.Event
+import com.example.cuidalink.ui.icons.HugeIcons
 import com.example.cuidalink.ui.theme.CuidaAmber
 import com.example.cuidalink.ui.theme.CuidaAmberSurface
 import com.example.cuidalink.ui.theme.CuidaBlue
@@ -30,6 +22,18 @@ internal fun Event.occursOn(date: LocalDate): Boolean {
     return if (isRecurring) recurringDays.contains(date.dayOfWeek.value) else dates.contains(date)
 }
 
+// Palabras clave que identifican un evento de medicación. Se comparten con
+// eventStyleFor para que la tarjeta de "Próxima medicación" del Home use el
+// mismo criterio que el icono de la línea de tiempo.
+private val medicationKeywords = listOf(
+    "medic", "pastilla", "insulina", "jarabe", "dosis", "tomar", "vitamina"
+)
+
+internal fun isMedicationEvent(name: String): Boolean {
+    val normalized = name.lowercase(spanishLocale)
+    return medicationKeywords.any { normalized.contains(it) }
+}
+
 // Icono y color según el tipo de actividad detectado en el nombre del evento,
 // imitando las categorías de color del diseño (verde, ámbar, azul).
 internal data class EventStyle(
@@ -43,27 +47,27 @@ internal fun eventStyleFor(name: String): EventStyle {
     fun matches(vararg keywords: String) = keywords.any { normalized.contains(it) }
 
     return when {
-        matches("medic", "pastilla", "insulina", "jarabe", "dosis", "tomar", "vitamina") ->
-            EventStyle(Icons.Filled.Medication, CuidaAmber, CuidaAmberSurface)
+        isMedicationEvent(name) ->
+            EventStyle(HugeIcons.Medicine, CuidaAmber, CuidaAmberSurface)
         matches("paseo", "pasear", "caminar", "andar", "parque") ->
-            EventStyle(Icons.AutoMirrored.Filled.DirectionsWalk, CuidaBlue, CuidaBlueSurface)
+            EventStyle(HugeIcons.Walking, CuidaBlue, CuidaBlueSurface)
         matches("cita", "médico", "medico", "doctor", "hospital", "consulta", "revisión", "revision") ->
-            EventStyle(Icons.Filled.MedicalServices, CuidaGreen, CuidaGreenSurface)
+            EventStyle(HugeIcons.Stethoscope, CuidaGreen, CuidaGreenSurface)
         matches("comida", "comer", "desayuno", "cena", "almuerzo", "merienda") ->
-            EventStyle(Icons.Filled.Restaurant, CuidaRed, CuidaRedSurface)
+            EventStyle(HugeIcons.Restaurant, CuidaRed, CuidaRedSurface)
         matches("ejercicio", "gimnasia", "deporte", "yoga", "estiramiento") ->
-            EventStyle(Icons.Filled.FitnessCenter, CuidaBlue, CuidaBlueSurface)
+            EventStyle(HugeIcons.Dumbbell, CuidaBlue, CuidaBlueSurface)
         matches("llamar", "llamada", "teléfono", "telefono", "videollamada") ->
-            EventStyle(Icons.Filled.Call, CuidaGreen, CuidaGreenSurface)
+            EventStyle(HugeIcons.Call, CuidaGreen, CuidaGreenSurface)
         matches("juego", "jugar", "memoria") ->
-            EventStyle(Icons.Filled.Extension, CuidaAmber, CuidaAmberSurface)
+            EventStyle(HugeIcons.Puzzle, CuidaAmber, CuidaAmberSurface)
         else -> {
             // Sin categoría conocida: color estable derivado del nombre,
             // para que eventos distintos no compartan todos el mismo color.
             val fallbackPalette = listOf(
-                EventStyle(Icons.Filled.Event, CuidaGreen, CuidaGreenSurface),
-                EventStyle(Icons.Filled.Event, CuidaAmber, CuidaAmberSurface),
-                EventStyle(Icons.Filled.Event, CuidaBlue, CuidaBlueSurface)
+                EventStyle(HugeIcons.CalendarCheck, CuidaGreen, CuidaGreenSurface),
+                EventStyle(HugeIcons.CalendarCheck, CuidaAmber, CuidaAmberSurface),
+                EventStyle(HugeIcons.CalendarCheck, CuidaBlue, CuidaBlueSurface)
             )
             fallbackPalette[abs(name.hashCode()) % fallbackPalette.size]
         }

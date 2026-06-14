@@ -1,8 +1,10 @@
 package com.example.cuidalink.ui.theme
 
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 
 // El diseño de CuidaLink define una única apariencia clara con la paleta verde.
@@ -34,7 +36,13 @@ fun CuidaLinkTheme(
 ) {
     MaterialTheme(
         colorScheme = CuidaLinkColorScheme,
-        typography = Typography,
-        content = content
-    )
+        typography = Typography
+    ) {
+        // Aplica Urbanist por defecto a TODO el texto, incluido el que no
+        // usa explícitamente un estilo del tema (Text con solo tamaño/peso).
+        CompositionLocalProvider(
+            LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = Urbanist),
+            content = content
+        )
+    }
 }

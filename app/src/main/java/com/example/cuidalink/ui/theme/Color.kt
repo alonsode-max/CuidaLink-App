@@ -3,10 +3,13 @@ package com.example.cuidalink.ui.theme
 import androidx.compose.ui.graphics.Color
 
 // Paleta CuidaLink (diseño "CuidaLink App")
-val CuidaGreen = Color(0xFF119B68)
+// Verde oficial de la app (#17A34A), sólido: se usa como color de marca en
+// botones, cabecera, textos de acento, etc.
+val CuidaGreen = Color(0xFF17A34A)
 val CuidaGreenDark = Color(0xFF0C7A52)
 val CuidaGreenSurface = Color(0xFFE7F5EF)
 val CuidaGreenSurfaceHover = Color(0xFFD2EDE1)
+val CuidaGreenLight = Color(0xFF7FD8AC)
 val CuidaTextPrimary = Color(0xFF17211C)
 val CuidaTextSecondary = Color(0xFF5E6B65)
 val CuidaTextDisabled = Color(0xFF9AA6A0)
@@ -26,3 +29,4 @@ val CuidaAmber = Color(0xFFA87B2E)
 val CuidaAmberSurface = Color(0xFFF7EFDF)
 val CuidaBlue = Color(0xFF3E7BBF)
 val CuidaBlueSurface = Color(0xFFE8F0F8)
+val CuidaHeaderTeal = Color(0xFF528F8D)

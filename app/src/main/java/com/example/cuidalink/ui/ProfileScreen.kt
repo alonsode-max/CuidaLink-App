@@ -43,7 +43,6 @@ import com.example.cuidalink.ui.theme.CuidaAmberDeep
 import com.example.cuidalink.ui.theme.CuidaAmberLabel
 import com.example.cuidalink.ui.theme.CuidaAmberSurface
 import com.example.cuidalink.ui.theme.CuidaBorder
-import com.example.cuidalink.ui.theme.CuidaDivider
 import com.example.cuidalink.ui.theme.CuidaGreen
 import com.example.cuidalink.ui.theme.CuidaGreenDark
 import com.example.cuidalink.ui.theme.CuidaGreenSurface
@@ -52,7 +51,6 @@ import com.example.cuidalink.ui.theme.CuidaRedDark
 import com.example.cuidalink.ui.theme.CuidaRedDeep
 import com.example.cuidalink.ui.theme.CuidaRedSurface
 import com.example.cuidalink.ui.theme.CuidaSurfaceMuted
-import com.example.cuidalink.ui.theme.CuidaTextDisabled
 import com.example.cuidalink.ui.theme.CuidaTextPrimary
 import com.example.cuidalink.ui.theme.CuidaTextSecondary
 
@@ -82,7 +80,6 @@ fun ProfileScreen(
         ProfileIdentity()
         TonalInfoGrid()
         ContactsButton(onOpenContacts = onOpenContacts)
-        WeeklyActivityCard()
         EmergencyContactCard()
         Spacer(modifier = Modifier.height(8.dp))
     }
@@ -252,70 +249,7 @@ private fun ContactsButton(onOpenContacts: () -> Unit) {
     }
 }
 
-// Gráfico semanal estático del diseño: la app aún no registra actividad diaria.
-@Composable
-private fun WeeklyActivityCard() {
-    val days = listOf("L", "M", "X", "J", "V", "S", "D")
-    val heights = listOf(0.55f, 0.75f, 0.45f, 0.85f, 0.18f, 0.18f, 0.18f)
-    val todayIndex = 3
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .border(1.dp, CuidaBorder, RoundedCornerShape(24.dp))
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text(
-            text = "Actividad esta semana",
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold,
-            color = CuidaTextPrimary
-        )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(84.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.Bottom
-        ) {
-            days.forEachIndexed { index, day ->
-                val isToday = index == todayIndex
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height((64 * heights[index]).dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(
-                                when {
-                                    isToday -> CuidaGreen
-                                    heights[index] > 0.2f -> CuidaGreenSurfaceHover
-                                    else -> CuidaDivider
-                                }
-                            )
-                    )
-                    Text(
-                        text = day,
-                        fontSize = 11.sp,
-                        fontWeight = if (isToday) FontWeight.ExtraBold else FontWeight.Bold,
-                        color = if (isToday) CuidaGreen else CuidaTextDisabled
-                    )
-                }
-            }
-        }
-        Text(
-            text = "4 paseos y 5 días de juegos",
-            fontSize = 13.sp,
-            color = CuidaTextSecondary
-        )
-    }
-}
+// El gráfico semanal de actividad se migró a DashboardScreen (Home).
 
 @Composable
 private fun EmergencyContactCard() {

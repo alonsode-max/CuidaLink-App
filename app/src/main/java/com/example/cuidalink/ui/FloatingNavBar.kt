@@ -1,16 +1,22 @@
 package com.example.cuidalink.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
@@ -29,9 +35,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.cuidalink.ui.theme.CuidaGreenDark
-import com.example.cuidalink.ui.theme.CuidaGreenSurface
-import com.example.cuidalink.ui.theme.CuidaTextPrimary
+import com.example.cuidalink.ui.theme.CuidaGreen
+import com.example.cuidalink.ui.theme.CuidaSurfaceMuted
 import com.example.cuidalink.ui.theme.CuidaTextSecondary
 
 /** Pestaña de la barra de navegación flotante. */
@@ -42,12 +47,11 @@ data class FloatingNavItem(
 )
 
 /**
- * Barra de navegación inferior flotante estilo One UI / Material You:
- * píldora despegada de los bordes, con el ítem activo resaltado por un
- * fondo redondeado detrás del icono y el texto.
- *
- * Se construye con una Row propia porque NavigationBar nativo no permite
- * la forma de píldora flotante ni el resaltado por ítem que pide el diseño.
+ * Barra inferior flotante dinámica: píldora clara despegada de los bordes.
+ * Los ítems inactivos son solo un icono dentro de un círculo claro (sin
+ * texto); el ítem activo se expande horizontalmente con fondo oscuro y
+ * muestra icono + etiqueta. Construida con Row propia porque NavigationBar
+ * nativo no permite esta morfología.
  */
 @Composable
 fun FloatingNavBar(
@@ -67,7 +71,7 @@ fun FloatingNavBar(
         tonalElevation = 2.dp
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -75,8 +79,7 @@ fun FloatingNavBar(
                 FloatingNavBarItem(
                     item = item,
                     isSelected = currentRoute == item.route,
-                    onClick = { onNavigate(item.route) },
-                    modifier = Modifier.weight(1f)
+                    onClick = { onNavigate(item.route) }
                 )
             }
         }
@@ -87,44 +90,55 @@ fun FloatingNavBar(
 private fun FloatingNavBarItem(
     item: FloatingNavItem,
     isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    onClick: () -> Unit
 ) {
+    // Inactivo: círculo claro solo con icono. Activo: píldora en el verde
+    // de marca, expandida con icono a la izquierda y etiqueta a la derecha.
     val containerColor by animateColorAsState(
-        targetValue = if (isSelected) CuidaGreenSurface else Color.Transparent,
+        targetValue = if (isSelected) CuidaGreen else CuidaSurfaceMuted,
         label = "navItemBackground"
     )
-    val contentColor = if (isSelected) CuidaGreenDark else CuidaTextSecondary
+    val contentColor by animateColorAsState(
+        targetValue = if (isSelected) Color.White else CuidaTextSecondary,
+        label = "navItemContent"
+    )
 
-    Box(
-        modifier = modifier
+    Row(
+        modifier = Modifier
             // Objetivo táctil amplio (>=48dp) para accesibilidad de mayores.
-            .heightIn(min = 56.dp)
+            .heightIn(min = 52.dp)
             .clip(RoundedCornerShape(percent = 50))
             .background(containerColor)
             .clickable(role = Role.Tab, onClick = onClick)
             .semantics {
                 selected = isSelected
                 contentDescription = "Ir a ${item.label}"
-            },
-        contentAlignment = Alignment.Center
+            }
+            .animateContentSize()
+            .padding(horizontal = if (isSelected) 20.dp else 14.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+        Icon(
+            imageVector = item.icon,
+            contentDescription = null,
+            tint = contentColor,
+            modifier = Modifier.size(24.dp)
+        )
+        AnimatedVisibility(
+            visible = isSelected,
+            enter = expandHorizontally() + fadeIn(),
+            exit = shrinkHorizontally() + fadeOut()
         ) {
-            Icon(
-                imageVector = item.icon,
-                contentDescription = null,
-                tint = contentColor
-            )
-            Text(
-                text = item.label,
-                fontSize = 12.sp,
-                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
-                color = if (isSelected) CuidaGreenDark else CuidaTextPrimary.copy(alpha = 0.75f)
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Spacer(modifier = Modifier.size(8.dp))
+                Text(
+                    text = item.label,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White,
+                    maxLines = 1
+                )
+            }
         }
     }
 }

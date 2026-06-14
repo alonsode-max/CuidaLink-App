@@ -14,15 +14,15 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -35,10 +35,16 @@ import com.example.cuidalink.ui.CalendarScreen
 import com.example.cuidalink.ui.CognitiveCenterScreen
 import com.example.cuidalink.ui.ContactsScreen
 import com.example.cuidalink.ui.DashboardScreen
-import com.example.cuidalink.ui.FloatingNavBar
+import com.example.cuidalink.ui.EMERGENCY_PHONE
+import com.example.cuidalink.ui.FAB_DOCK_OFFSET
 import com.example.cuidalink.ui.FloatingNavItem
 import com.example.cuidalink.ui.GameScreen
+import com.example.cuidalink.ui.SosBottomBar
+import com.example.cuidalink.ui.SosFab
 import com.example.cuidalink.ui.ProfileScreen
+import com.example.cuidalink.ui.icons.HugeIcons
+import com.example.cuidalink.ui.theme.CuidaGreenSurface
+import com.example.cuidalink.ui.theme.CuidaGreenSurfaceHover
 import com.example.cuidalink.ui.theme.CuidaLinkTheme
 import com.example.cuidalink.viewmodel.CalendarViewModel
 import com.example.cuidalink.viewmodel.GameViewModel
@@ -108,10 +114,15 @@ class MainActivity : ComponentActivity() {
                 // muestran sin barra para evitar distracciones.
                 val bottomBarRoutes = setOf("inicio", "entrenamiento", "calendario")
 
-                val navItems = listOf(
-                    FloatingNavItem("inicio", "Inicio", Icons.Default.Home),
-                    FloatingNavItem("entrenamiento", "Entrenamiento", Icons.Default.Psychology),
-                    FloatingNavItem("calendario", "Calendario", Icons.Default.CalendarMonth)
+                // Accesos repartidos a los lados del recorte del SOS. Perfil
+                // queda como último ítem a la derecha.
+                val leftNavItems = listOf(
+                    FloatingNavItem("inicio", "Inicio", HugeIcons.Home),
+                    FloatingNavItem("calendario", "Calendario", HugeIcons.Calendar)
+                )
+                val rightNavItems = listOf(
+                    FloatingNavItem("entrenamiento", "Juegos", HugeIcons.Brain),
+                    FloatingNavItem("perfil", "Perfil", HugeIcons.User)
                 )
 
                 fun navigateToTab(route: String) {
@@ -122,16 +133,53 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                // Fondo común: degradado verde visible en todas las pantallas
+                // (el Scaffold es transparente). Las secciones-píldora blancas
+                // flotan encima.
+                val backgroundBrush = Brush.verticalGradient(
+                    colorStops = arrayOf(
+                        0f to CuidaGreenSurfaceHover,
+                        0.55f to CuidaGreenSurface,
+                        1f to Color.White
+                    )
+                )
+
                 Scaffold(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(backgroundBrush),
+                    containerColor = Color.Transparent,
+                    floatingActionButton = {
+                        if (currentRoute in bottomBarRoutes) {
+                            // SOS centrado y bajado para sobresalir y encajar en
+                            // el recorte de la barra inferior.
+                            SosFab(
+                                onClick = {
+                                    val intent = Intent(
+                                        Intent.ACTION_DIAL,
+                                        Uri.parse("tel:$EMERGENCY_PHONE")
+                                    )
+                                    context.startActivity(intent)
+                                },
+                                modifier = Modifier.offset(y = FAB_DOCK_OFFSET)
+                            )
+                        }
+                    },
+                    floatingActionButtonPosition = FabPosition.Center,
                     bottomBar = {
                         if (currentRoute in bottomBarRoutes) {
-                            // Barra flotante estilo One UI: píldora con padding
-                            // lateral e inferior, despegada de los bordes.
-                            FloatingNavBar(
-                                items = navItems,
+                            // Barra blanca con recorte central para el SOS.
+                            SosBottomBar(
+                                leftItems = leftNavItems,
+                                rightItems = rightNavItems,
                                 currentRoute = currentRoute,
-                                onNavigate = { route -> navigateToTab(route) }
+                                onNavigate = { route ->
+                                    if (route == "perfil") {
+                                        navController.navigate("perfil")
+                                    } else {
+                                        navigateToTab(route)
+                                    }
+                                }
                             )
                         }
                     }
@@ -139,13 +187,15 @@ class MainActivity : ComponentActivity() {
                     NavHost(
                         navController = navController,
                         startDestination = "inicio",
-                        modifier = Modifier.padding(innerPadding)
+                        // Solo respetamos el inset superior: el contenido se
+                        // extiende por debajo de la barra para que la píldora
+                        // quede superpuesta sobre él (sin banda de fondo alrededor).
+                        modifier = Modifier.padding(top = innerPadding.calculateTopPadding())
                     ) {
                         composable("inicio") {
                             DashboardScreen(
                                 calendarViewModel = calendarViewModel,
                                 onOpenCalendar = { navigateToTab("calendario") },
-                                onOpenProfile = { navController.navigate("perfil") },
                                 onPlay = { navigateToTab("entrenamiento") }
                             )
                         }
