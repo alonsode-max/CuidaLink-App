@@ -11,8 +11,33 @@ class CalendarViewModel : ViewModel() {
     private val _events = MutableStateFlow<List<Event>>(emptyList())
     val events: StateFlow<List<Event>> = _events.asStateFlow()
 
+    // Tomas/recordatorios marcados como completados. La clave es por evento y por
+    // fecha ("id|fecha") porque un evento recurrente se repite cada día. El
+    // completado depende SOLO de marcar el checkbox, no de que pase la hora.
+    private val _completed = MutableStateFlow<Set<String>>(emptySet())
+    val completed: StateFlow<Set<String>> = _completed.asStateFlow()
+
+    fun completionKey(eventId: String, date: LocalDate): String = "$eventId|$date"
+
+    fun isCompleted(eventId: String, date: LocalDate): Boolean =
+        _completed.value.contains(completionKey(eventId, date))
+
+    fun toggleCompleted(eventId: String, date: LocalDate) {
+        val key = completionKey(eventId, date)
+        _completed.value = if (_completed.value.contains(key)) {
+            _completed.value - key
+        } else {
+            _completed.value + key
+        }
+    }
+
     fun addEvent(event: Event) {
         _events.value = _events.value + event
+    }
+
+    // Reemplaza un evento existente (mismo id) por su versión editada.
+    fun updateEvent(updated: Event) {
+        _events.value = _events.value.map { if (it.id == updated.id) updated else it }
     }
 
     fun removeEventForDate(event: Event, date: LocalDate) {

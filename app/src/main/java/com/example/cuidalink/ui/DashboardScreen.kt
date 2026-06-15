@@ -189,10 +189,11 @@ private fun PatientHeader() {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(300.dp)
-            // Degradado verde muy sutil del header. Colores literales (no tokens
-            // de la paleta) para poder ajustarlos aquí sin afectar al resto de la
-            // app: arriba #17A34A, abajo un verde casi idéntico, nunca blanco.
+            // Sin altura fija: el header se ajusta a su contenido, así en
+            // cualquier pantalla/escala de fuente el panel blanco que se solapa
+            // (-28dp) solo cubre el margen verde de abajo y nunca el texto.
+            // Degradado verde muy sutil. Colores literales (no tokens de la
+            // paleta) para ajustarlos aquí sin afectar al resto de la app.
             .background(
                 Brush.verticalGradient(
                     listOf(Color(0xFF17A34A),Color(0xFF17A34A),Color(0xFF17A34A), Color(0xFFE4E5E4))
@@ -202,7 +203,10 @@ private fun PatientHeader() {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(24.dp)
+                .padding(horizontal = 24.dp)
+                // Margen inferior amplio: deja espacio verde bajo las píldoras
+                // para que el solape del panel no tape contenido.
+                .padding(top = 24.dp, bottom = 52.dp)
                 .semantics(mergeDescendants = true) {
                     contentDescription = "$greeting. Hola, $PATIENT_NAME. $dateText"
                 },

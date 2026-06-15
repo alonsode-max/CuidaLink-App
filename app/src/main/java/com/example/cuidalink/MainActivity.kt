@@ -18,6 +18,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -36,12 +38,15 @@ import com.example.cuidalink.ui.CognitiveCenterScreen
 import com.example.cuidalink.ui.ContactsScreen
 import com.example.cuidalink.ui.DashboardScreen
 import com.example.cuidalink.ui.EMERGENCY_PHONE
+import com.example.cuidalink.ui.EmergencyHelpScreen
+import com.example.cuidalink.ui.EmojiPairsGameScreen
 import com.example.cuidalink.ui.FAB_DOCK_OFFSET
 import com.example.cuidalink.ui.FloatingNavItem
 import com.example.cuidalink.ui.GameScreen
 import com.example.cuidalink.ui.SosBottomBar
 import com.example.cuidalink.ui.SosFab
 import com.example.cuidalink.ui.ProfileScreen
+import com.example.cuidalink.ui.SettingsScreen
 import com.example.cuidalink.ui.icons.HugeIcons
 import com.example.cuidalink.ui.theme.CuidaGreenSurface
 import com.example.cuidalink.ui.theme.CuidaGreenSurfaceHover
@@ -112,7 +117,7 @@ class MainActivity : ComponentActivity() {
                 // la barra: se llega desde el Centro de estimulación cognitiva
                 // (pestaña Entrenamiento). Perfil, contactos y el juego se
                 // muestran sin barra para evitar distracciones.
-                val bottomBarRoutes = setOf("inicio", "entrenamiento", "calendario")
+                val bottomBarRoutes = setOf("inicio", "entrenamiento", "calendario", "ajustes")
 
                 // Accesos repartidos a los lados del recorte del SOS. Perfil
                 // queda como último ítem a la derecha.
@@ -122,7 +127,7 @@ class MainActivity : ComponentActivity() {
                 )
                 val rightNavItems = listOf(
                     FloatingNavItem("entrenamiento", "Juegos", HugeIcons.Brain),
-                    FloatingNavItem("perfil", "Perfil", HugeIcons.User)
+                    FloatingNavItem("ajustes", "Ajustes", Icons.Filled.Settings)
                 )
 
                 fun navigateToTab(route: String) {
@@ -154,13 +159,10 @@ class MainActivity : ComponentActivity() {
                             // SOS centrado y bajado para sobresalir y encajar en
                             // el recorte de la barra inferior.
                             SosFab(
-                                onClick = {
-                                    val intent = Intent(
-                                        Intent.ACTION_DIAL,
-                                        Uri.parse("tel:$EMERGENCY_PHONE")
-                                    )
-                                    context.startActivity(intent)
-                                },
+                                // Al activar el SOS se abre el modo de auxilio
+                                // ("Ayuda en camino") en lugar de marcar de una;
+                                // desde ahí se confirma la llamada al 112.
+                                onClick = { navController.navigate("auxilio") },
                                 modifier = Modifier.offset(y = FAB_DOCK_OFFSET)
                             )
                         }
@@ -173,13 +175,7 @@ class MainActivity : ComponentActivity() {
                                 leftItems = leftNavItems,
                                 rightItems = rightNavItems,
                                 currentRoute = currentRoute,
-                                onNavigate = { route ->
-                                    if (route == "perfil") {
-                                        navController.navigate("perfil")
-                                    } else {
-                                        navigateToTab(route)
-                                    }
-                                }
+                                onNavigate = { route -> navigateToTab(route) }
                             )
                         }
                     }
@@ -201,7 +197,8 @@ class MainActivity : ComponentActivity() {
                         }
                         composable("entrenamiento") {
                             CognitiveCenterScreen(
-                                onPlayGame = { navController.navigate("juego") }
+                                onPlayGame = { navController.navigate("juego") },
+                                onPlayEmojiPairs = { navController.navigate("juegoParejas") }
                             )
                         }
                         composable("juego") {
@@ -212,8 +209,38 @@ class MainActivity : ComponentActivity() {
                                 onBack = { navController.popBackStack() }
                             )
                         }
+                        composable("juegoParejas") {
+                            // Juego de memoria local (Parejas de Emojis), también a
+                            // foco completo sin barra de navegación.
+                            EmojiPairsGameScreen(
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+                        composable("auxilio") {
+                            // Modo de auxilio automático "Ayuda en camino"
+                            // (diseño 3A), a foco completo y sin barra. El botón
+                            // rojo confirma la llamada al 112; "Estoy bien" vuelve.
+                            EmergencyHelpScreen(
+                                onCall = {
+                                    val intent = Intent(
+                                        Intent.ACTION_DIAL,
+                                        Uri.parse("tel:$EMERGENCY_PHONE")
+                                    )
+                                    context.startActivity(intent)
+                                },
+                                onCancel = { navController.popBackStack() }
+                            )
+                        }
                         composable("calendario") {
                             CalendarScreen(viewModel = calendarViewModel)
+                        }
+                        composable("ajustes") {
+                            // Pantalla de Ajustes (antes "Perfil" en la barra).
+                            // "Información personal" abre la ficha del paciente.
+                            SettingsScreen(
+                                onBack = { navController.popBackStack() },
+                                onOpenProfile = { navController.navigate("perfil") }
+                            )
                         }
                         composable("perfil") {
                             ProfileScreen(

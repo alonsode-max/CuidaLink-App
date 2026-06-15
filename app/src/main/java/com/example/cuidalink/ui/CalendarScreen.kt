@@ -3,6 +3,7 @@ package com.example.cuidalink.ui
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.widget.Toast
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -10,6 +11,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -23,6 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Event
@@ -38,6 +41,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -46,15 +50,18 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.cuidalink.model.Event
+import com.example.cuidalink.ui.icons.HugeIcons
 import com.example.cuidalink.ui.theme.*
 import com.example.cuidalink.util.scheduleAlarms
 import com.example.cuidalink.viewmodel.CalendarViewModel
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.YearMonth
@@ -69,61 +76,59 @@ fun CalendarScreen(
     viewModel: CalendarViewModel = viewModel()
 ) {
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
-    var currentMonth by remember { mutableStateOf(YearMonth.now()) }
     var showAddEventModal by remember { mutableStateOf(false) }
     var selectedEventForDetails by remember { mutableStateOf<Event?>(null) }
 
     val context = LocalContext.current
     val events by viewModel.events.collectAsState()
+    val completedKeys by viewModel.completed.collectAsState()
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        containerColor = Color.White,
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddEventModal = true },
-                containerColor = CuidaGreen,
-                contentColor = Color.White,
-                shape = RoundedCornerShape(percent = 50)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Añadir evento")
-            }
-        }
+        containerColor = Color.White
     ) { padding ->
         Column(
             modifier = Modifier
-                .padding(padding)
                 .fillMaxSize()
-                .padding(horizontal = 22.dp)
+                // Solo el inset inferior: el superior ya lo aporta el NavHost de
+                // MainActivity, así el header verde llega hasta arriba sin franja
+                // blanca encima.
+                .padding(bottom = padding.calculateBottomPadding())
         ) {
-            CalendarHeader(
-                currentMonth = currentMonth,
-                onPreviousMonth = { currentMonth = currentMonth.minusMonths(1) },
-                onNextMonth = { currentMonth = currentMonth.plusMonths(1) }
-            )
+            // Header compacto: indica al paciente que está en el Calendario.
+            ScreenHeader(title = "Calendario", icon = HugeIcons.Calendar)
 
-            Spacer(modifier = Modifier.height(14.dp))
+            // Panel de contenido: esquinas superiores redondeadas que se solapan
+            // hacia arriba sobre el header verde (mismo patrón que el Home).
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .offset(y = (-24).dp)
+                    .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+                    .background(Color.White)
+                    .padding(horizontal = 12.dp)
+                    .padding(top = 12.dp)
+            ) {
+                CalendarCard(
+                    selectedDate = selectedDate,
+                    events = events,
+                    onPreviousWeek = { selectedDate = selectedDate.minusWeeks(1) },
+                    onNextWeek = { selectedDate = selectedDate.plusWeeks(1) },
+                    onDateSelected = { selectedDate = it },
+                    onAddReminder = { showAddEventModal = true }
+                )
 
-            WeekdayHeaderRow()
+                Spacer(modifier = Modifier.height(20.dp))
 
-            Spacer(modifier = Modifier.height(6.dp))
+                DayAgenda(
+                    selectedDate = selectedDate,
+                    events = viewModel.getEventsForDate(selectedDate),
+                    completedKeys = completedKeys,
+                    onEventClick = { selectedEventForDetails = it },
+                    onToggleCompleted = { viewModel.toggleCompleted(it.id, selectedDate) },
+                )
 
-            MonthGrid(
-                currentMonth = currentMonth,
-                selectedDate = selectedDate,
-                events = events,
-                onDateSelected = { selectedDate = it }
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-            HorizontalDivider(color = CuidaDivider)
-            Spacer(modifier = Modifier.height(12.dp))
-
-            DayAgenda(
-                selectedDate = selectedDate,
-                events = viewModel.getEventsForDate(selectedDate),
-                onEventClick = { selectedEventForDetails = it }
-            )
+            }
         }
 
         if (showAddEventModal) {
@@ -146,6 +151,14 @@ fun CalendarScreen(
                 event = event,
                 date = selectedDate,
                 onDismiss = { selectedEventForDetails = null },
+                onSave = { updated ->
+                    viewModel.updateEvent(updated)
+                    if (updated.hasAlarm) {
+                        scheduleAlarms(context, updated)
+                    }
+                    selectedEventForDetails = null
+                    Toast.makeText(context, "Cambios guardados", Toast.LENGTH_SHORT).show()
+                },
                 onDeleteDay = {
                     viewModel.removeEventForDate(event, selectedDate)
                     selectedEventForDetails = null
@@ -161,145 +174,293 @@ fun CalendarScreen(
     }
 }
 
+// Tarjeta del calendario (diseño de la imagen): tarjeta verde oscura con el mes
+// centrado y flechas a los lados, la tira de los 7 días de la semana y, abajo,
+// el botón de añadir recordatorio.
 @Composable
-private fun CalendarHeader(
-    currentMonth: YearMonth,
-    onPreviousMonth: () -> Unit,
-    onNextMonth: () -> Unit
+private fun CalendarCard(
+    selectedDate: LocalDate,
+    events: List<Event>,
+    onPreviousWeek: () -> Unit,
+    onNextWeek: () -> Unit,
+    onDateSelected: (LocalDate) -> Unit,
+    onAddReminder: () -> Unit
 ) {
-    val monthLabel = "${currentMonth.month.getDisplayName(TextStyle.FULL, spanishLocale).replaceFirstChar { it.uppercase(spanishLocale) }} ${currentMonth.year}"
+    val monthLabel = selectedDate.month
+        .getDisplayName(TextStyle.FULL, spanishLocale)
+        .replaceFirstChar { it.uppercase(spanishLocale) }
 
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 10.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+            .shadow(elevation = 4.dp, shape = RoundedCornerShape(28.dp))
+            .clip(RoundedCornerShape(28.dp))
+            .background(CuidaGreen)
+            .padding(horizontal = 18.dp, vertical = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        Text(
-            text = "Calendario",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = CuidaTextPrimary
-        )
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            MonthNavButton(
-                icon = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Mes anterior", tint = CuidaTextSecondary) },
-                onClick = onPreviousMonth
+        // Fila del mes con flechas a los lados (chevrons blancos sin borde).
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                contentDescription = "Semana anterior",
+                tint = Color.White,
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .clickable(role = Role.Button, onClick = onPreviousWeek)
             )
             Text(
                 text = monthLabel,
-                fontSize = 14.sp,
+                fontFamily = Urbanist,
+                fontSize = 24.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = CuidaTextPrimary
+                color = Color.White
             )
-            MonthNavButton(
-                icon = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Mes siguiente", tint = CuidaTextSecondary) },
-                onClick = onNextMonth
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = "Semana siguiente",
+                tint = Color.White,
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .clickable(role = Role.Button, onClick = onNextWeek)
             )
+        }
+
+        WeekStrip(
+            selectedDate = selectedDate,
+            events = events,
+            onDateSelected = onDateSelected
+        )
+
+        // Botón de añadir recordatorio dentro de la tarjeta (sustituye al FAB).
+        Button(
+            onClick = onAddReminder,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 56.dp)
+                .semantics { contentDescription = "Añadir Evento" },
+            shape = RoundedCornerShape(percent = 50),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color.White,
+                contentColor = CuidaGreen
+            )
+        ) {
+            Text(text = "Añadir Evento", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
         }
     }
 }
 
+// Tira horizontal con los 7 días de la semana de la fecha seleccionada
+// (de lunes a domingo). El día elegido se resalta con un círculo verde.
 @Composable
-private fun MonthNavButton(icon: @Composable () -> Unit, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(48.dp)
-            .clip(CircleShape)
-            .border(1.dp, CuidaBorder, CircleShape)
-            .clickable(role = Role.Button, onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        icon()
-    }
-}
-
-@Composable
-private fun WeekdayHeaderRow() {
-    Row(modifier = Modifier.fillMaxWidth()) {
-        listOf("L", "M", "X", "J", "V", "S", "D").forEach { day ->
-            Text(
-                text = day,
-                modifier = Modifier.weight(1f),
-                textAlign = TextAlign.Center,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = CuidaTextDisabled
-            )
-        }
-    }
-}
-
-@Composable
-private fun MonthGrid(
-    currentMonth: YearMonth,
+private fun WeekStrip(
     selectedDate: LocalDate,
     events: List<Event>,
     onDateSelected: (LocalDate) -> Unit
 ) {
-    val daysInMonth = currentMonth.lengthOfMonth()
-    val offset = currentMonth.atDay(1).dayOfWeek.value - 1
+    val weekStart = selectedDate.minusDays((selectedDate.dayOfWeek.value - 1).toLong())
+    val days = (0L..6L).map { weekStart.plusDays(it) }
 
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(7),
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        userScrollEnabled = false
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        items(offset) { Box(modifier = Modifier.height(48.dp)) }
-        items(daysInMonth) { index ->
-            val day = index + 1
-            val date = currentMonth.atDay(day)
-            val isSelected = date == selectedDate
-            val isToday = date == LocalDate.now()
-            val dayEvents = events.filter { it.occursOn(date) }
-            val hasEvents = dayEvents.isNotEmpty()
+        days.forEach { date ->
+            WeekDayCell(
+                date = date,
+                isSelected = date == selectedDate,
+                isToday = date == LocalDate.now(),
+                hasEvents = events.any { it.occursOn(date) },
+                onClick = { onDateSelected(date) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
 
-            val dayDescription = buildString {
-                append(date.format(DateTimeFormatter.ofPattern("d 'de' MMMM", spanishLocale)))
-                if (isToday) append(", hoy")
-                if (isSelected) append(", seleccionado")
-                if (hasEvents) append(", con eventos")
-            }
+@Composable
+private fun WeekDayCell(
+    date: LocalDate,
+    isSelected: Boolean,
+    isToday: Boolean,
+    hasEvents: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val weekdayLabel = date.dayOfWeek
+        .getDisplayName(TextStyle.SHORT, spanishLocale)
+        .replaceFirstChar { it.uppercase(spanishLocale) }
+        .trimEnd('.')
+    val description = buildString {
+        append(date.format(DateTimeFormatter.ofPattern("EEEE d 'de' MMMM", spanishLocale)))
+        if (isToday) append(", hoy")
+        if (isSelected) append(", seleccionado")
+        if (hasEvents) append(", con eventos")
+    }
 
-            Column(
-                modifier = Modifier
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable(role = Role.Button) { onDateSelected(date) }
-                    .semantics { contentDescription = dayDescription },
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(if (isSelected) CuidaGreen else Color.Transparent),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = day.toString(),
-                        fontSize = 13.sp,
-                        fontWeight = if (isSelected || isToday) FontWeight.ExtraBold else FontWeight.SemiBold,
-                        color = when {
-                            isSelected -> Color.White
-                            isToday -> CuidaGreen
-                            else -> CuidaTextPrimary
-                        }
-                    )
+    // Colores pensados para la tarjeta verde oscura: texto blanco, y el día
+    // seleccionado en un círculo claro (verde claro) con número oscuro.
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = description }
+            .padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = weekdayLabel,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color.White.copy(alpha = 0.85f)
+        )
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(if (isSelected) Color.White else Color.Transparent),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = date.dayOfMonth.toString(),
+                fontSize = 16.sp,
+                fontWeight = if (isSelected || isToday) FontWeight.ExtraBold else FontWeight.SemiBold,
+                color = when {
+                    isSelected -> CuidaGreenDark
+                    isToday -> CuidaGreenLight
+                    else -> Color.White
                 }
-                Row(
-                    modifier = Modifier.padding(top = 2.dp).height(5.dp),
-                    horizontalArrangement = Arrangement.spacedBy(3.dp)
-                ) {
-                    dayEvents.take(3).forEach { dayEvent ->
-                        Box(
-                            modifier = Modifier
-                                .size(5.dp)
-                                .clip(CircleShape)
-                                .background(eventStyleFor(dayEvent.name).color)
-                        )
+            )
+        }
+        // Punto indicador de eventos (oculto en el día seleccionado).
+        Box(
+            modifier = Modifier
+                .size(5.dp)
+                .clip(CircleShape)
+                .background(if (hasEvents && !isSelected) CuidaGreenLight else Color.Transparent)
+        )
+    }
+}
+
+// Alto mínimo de cada franja de hora del eje temporal.
+private val HOUR_ROW_MIN_HEIGHT = 76.dp
+// Ancho de la columna izquierda con las etiquetas de hora.
+private val HOUR_AXIS_WIDTH = 60.dp
+// Ancho fijo de cada caja de recordatorio (se forman en horizontal con scroll).
+private val EVENT_BOX_WIDTH = 210.dp
+
+@Composable
+private fun DayAgenda(
+    selectedDate: LocalDate,
+    events: List<Event>,
+    completedKeys: Set<String>,
+    onEventClick: (Event) -> Unit,
+    onToggleCompleted: (Event) -> Unit
+) {
+    val isToday = selectedDate == LocalDate.now()
+    val now = remember(selectedDate) { LocalTime.now() }
+    // Fecha grande como título (p. ej. "Viernes, 24").
+    val title = selectedDate
+        .format(DateTimeFormatter.ofPattern("EEEE d", spanishLocale))
+        .replaceFirstChar { it.uppercase(spanishLocale) }
+
+    // Se muestran TODAS las horas del día (00:00–23:00); la lista hace scroll.
+    val hours = (0..23).toList()
+    val sortedEvents = events.sortedBy { it.time }
+
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    // Posición de scroll que deja la hora actual a la vista (~1 hora antes).
+    val nowScrollIndex = (now.hour - 1).coerceAtLeast(0)
+
+    // Solo mientras se está scrolleando la lista, la tarjeta de la fecha se
+    // compacta en forma de píldora; en reposo vuelve a tarjeta normal.
+    val scrolled = listState.isScrollInProgress
+    // Solo se anima el radio y la sombra (cambios de DIBUJO, baratos). NO se
+    // anima el tamaño de texto ni el padding: eso re-mediría y re-dispondría la
+    // lista en cada frame y causaba el tirón a ~10 fps.
+    val cardCorner by animateDpAsState(targetValue = if (scrolled) 50.dp else 0.dp, label = "cardCorner")
+    val cardElevation by animateDpAsState(targetValue = if (scrolled) 3.dp else 0.dp, label = "cardElevation")
+    val cardShape = RoundedCornerShape(cardCorner)
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(elevation = cardElevation, shape = cardShape)
+                .clip(cardShape)
+                .background(Color.White)
+                .padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = title,
+                fontSize = 26.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = CuidaTextPrimary,
+                modifier = Modifier.weight(1f)
+            )
+            // Botón "Hora actual": lleva la lista a la franja de ahora.
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(percent = 50))
+                    .background(CuidaGreenSurface)
+                    .clickable(role = Role.Button) {
+                        scope.launch { listState.animateScrollToItem(nowScrollIndex) }
+                    }
+                    .semantics { contentDescription = "Ir a la hora actual" }
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Schedule,
+                    contentDescription = null,
+                    tint = CuidaGreenDark,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Hora actual",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = CuidaGreenDark
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Al abrir el día de hoy, centra la hora actual mostrando ~1 hora antes.
+        LaunchedEffect(isToday, now.hour) {
+            if (isToday) {
+                listState.scrollToItem(nowScrollIndex)
+            }
+        }
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            state = listState,
+            // Margen inferior para que la última hora (23:00) no quede tapada por
+            // la barra flotante de navegación superpuesta.
+            contentPadding = PaddingValues(bottom = 120.dp)
+        ) {
+            items(hours) { hour ->
+                Column {
+                    HourRow(
+                        hour = hour,
+                        events = sortedEvents.filter { it.time.hour == hour },
+                        isCompleted = { event -> completedKeys.contains("${event.id}|$selectedDate") },
+                        onEventClick = onEventClick,
+                        onToggleCompleted = onToggleCompleted
+                    )
+                    // Indicador de "ahora" justo bajo la franja de la hora actual.
+                    if (isToday && now.hour == hour) {
+                        NowIndicator()
                     }
                 }
             }
@@ -307,96 +468,191 @@ private fun MonthGrid(
     }
 }
 
+// Una franja horaria del eje: etiqueta de hora a la izquierda y, a la derecha,
+// las cajas de los eventos que empiezan en esa hora (puede no haber ninguno).
 @Composable
-private fun DayAgenda(
-    selectedDate: LocalDate,
+private fun HourRow(
+    hour: Int,
     events: List<Event>,
-    onEventClick: (Event) -> Unit
+    isCompleted: (Event) -> Boolean,
+    onEventClick: (Event) -> Unit,
+    onToggleCompleted: (Event) -> Unit
 ) {
-    val isToday = selectedDate == LocalDate.now()
-    val dayLabel = selectedDate.format(DateTimeFormatter.ofPattern("EEEE d", spanishLocale))
-    val title = if (isToday) "Hoy · $dayLabel" else dayLabel.replaceFirstChar { it.uppercase(spanishLocale) }
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        Text(
-            text = title,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = CuidaTextPrimary
-        )
-        Spacer(modifier = Modifier.height(10.dp))
-
-        if (events.isEmpty()) {
-            Text(
-                text = "No hay eventos para este día",
-                fontSize = 14.sp,
-                color = CuidaTextSecondary
-            )
-        } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(events.sortedBy { it.time }) { event ->
-                    AgendaEventCard(event = event, onClick = { onEventClick(event) })
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AgendaEventCard(event: Event, onClick: () -> Unit) {
-    val style = eventStyleFor(event.name)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .border(1.dp, CuidaBorder, RoundedCornerShape(24.dp))
-            .clickable(role = Role.Button, onClick = onClick)
-            .semantics {
-                contentDescription = "Evento ${event.name} a las ${event.time.format(DateTimeFormatter.ofPattern("HH:mm"))}"
-            }
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+            .heightIn(min = HOUR_ROW_MIN_HEIGHT),
+        verticalAlignment = Alignment.Top
     ) {
-        Box(
+        Text(
+            text = "%02d:00".format(hour),
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            color = CuidaTextDisabled,
+            modifier = Modifier.width(HOUR_AXIS_WIDTH)
+        )
+        // Las completadas van al final; las pendientes primero. Todas las cajas
+        // de la misma hora se forman en horizontal, con scroll si no caben.
+        val ordered = events.sortedWith(compareBy({ isCompleted(it) }, { it.time }))
+        Row(
             modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(style.container),
-            contentAlignment = Alignment.Center
+                .weight(1f)
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Icon(
-                style.icon,
-                contentDescription = null,
-                tint = style.color,
-                modifier = Modifier.size(18.dp)
-            )
-        }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = event.name,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = CuidaTextPrimary
-            )
-            if (!event.description.isNullOrBlank()) {
-                Text(
-                    text = event.description,
-                    fontSize = 12.sp,
-                    color = CuidaTextSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+            ordered.forEach { event ->
+                EventBox(
+                    event = event,
+                    isCompleted = isCompleted(event),
+                    onClick = { onEventClick(event) },
+                    onToggleCompleted = { onToggleCompleted(event) },
+                    modifier = Modifier.width(EVENT_BOX_WIDTH)
                 )
             }
         }
-        Text(
-            text = event.time.format(DateTimeFormatter.ofPattern("HH:mm")),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = style.color
+    }
+}
+
+// Indicador de la hora actual: círculo hueco en el eje + línea horizontal.
+@Composable
+private fun NowIndicator() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .width(HOUR_AXIS_WIDTH),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(14.dp)
+                    .clip(CircleShape)
+                    .background(CuidaGreen),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(Color.White)
+                )
+            }
+        }
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(2.dp)
+                .clip(RoundedCornerShape(percent = 50))
+                .background(CuidaGreen)
         )
     }
 }
+
+// Caja del recordatorio: nombre del evento, su hora y un checkbox para marcarlo
+// como completado. Al pulsar la caja se abre el diálogo editable; al pulsar el
+// checkbox se marca/desmarca como completado (independiente de la hora).
+@Composable
+private fun EventBox(
+    event: Event,
+    isCompleted: Boolean,
+    onClick: () -> Unit,
+    onToggleCompleted: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val style = eventStyleFor(event.name)
+    val timeText = event.time.format(DateTimeFormatter.ofPattern("HH:mm"))
+
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(style.container)
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics {
+                contentDescription = "Evento ${event.name} a las $timeText." +
+                    (if (isCompleted) " Completado." else "") + " Pulsa para ver y editar."
+            }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = event.name,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = if (isCompleted) CuidaTextSecondary else CuidaTextPrimary,
+                textDecoration = if (isCompleted) TextDecoration.LineThrough else null
+            )
+            Text(
+                text = timeText,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = style.color
+            )
+        }
+        CompletionCheck(isCompleted = isCompleted, onToggle = onToggleCompleted)
+    }
+}
+
+// Checkbox circular para marcar un recordatorio como completado.
+@Composable
+private fun CompletionCheck(isCompleted: Boolean, onToggle: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .then(
+                if (isCompleted) Modifier.background(CuidaGreen)
+                else Modifier.border(2.dp, CuidaGreen, CircleShape)
+            )
+            .clickable(role = Role.Checkbox, onClick = onToggle)
+            .semantics {
+                contentDescription = if (isCompleted) "Marcar como no completado" else "Marcar como completado"
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        if (isCompleted) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+// Colores de la app para los controles Material de los diálogos (en lugar del
+// morado por defecto de Material Design).
+@Composable
+private fun appSwitchColors() = SwitchDefaults.colors(
+    checkedThumbColor = Color.White,
+    checkedTrackColor = CuidaGreen,
+    checkedBorderColor = CuidaGreen,
+    uncheckedThumbColor = Color.White,
+    uncheckedTrackColor = CuidaTextDisabled,
+    uncheckedBorderColor = CuidaTextDisabled
+)
+
+@Composable
+private fun appFilterChipColors() = FilterChipDefaults.filterChipColors(
+    selectedContainerColor = CuidaGreen,
+    selectedLabelColor = Color.White
+)
+
+@Composable
+private fun appTextFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = CuidaGreen,
+    focusedLabelColor = CuidaGreen,
+    cursorColor = CuidaGreen
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -421,7 +677,7 @@ fun AddEventDialog(initialDate: LocalDate, onDismiss: () -> Unit, onSave: (Event
             Column(modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
                 Text(
                     "Nuevo evento",
-                    fontSize = 20.sp,
+                    fontSize = 30.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = CuidaTextPrimary
                 )
@@ -432,7 +688,8 @@ fun AddEventDialog(initialDate: LocalDate, onDismiss: () -> Unit, onSave: (Event
                     onValueChange = { name = it },
                     label = { Text("Nombre del evento") },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp)
+                    shape = RoundedCornerShape(18.dp),
+                    colors = appTextFieldColors()
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -443,7 +700,8 @@ fun AddEventDialog(initialDate: LocalDate, onDismiss: () -> Unit, onSave: (Event
                     label = { Text("Descripción (opcional)") },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
-                    shape = RoundedCornerShape(18.dp)
+                    shape = RoundedCornerShape(18.dp),
+                    colors = appTextFieldColors()
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -505,7 +763,7 @@ fun AddEventDialog(initialDate: LocalDate, onDismiss: () -> Unit, onSave: (Event
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("¿Es recurrente?", color = CuidaTextPrimary)
                     Spacer(modifier = Modifier.weight(1f))
-                    Switch(checked = isRecurring, onCheckedChange = { isRecurring = it })
+                    Switch(checked = isRecurring, onCheckedChange = { isRecurring = it }, colors = appSwitchColors())
                 }
 
                 if (isRecurring) {
@@ -524,7 +782,8 @@ fun AddEventDialog(initialDate: LocalDate, onDismiss: () -> Unit, onSave: (Event
                                 onClick = {
                                     selectedDays = if (isSelected) selectedDays - dayNum else selectedDays + dayNum
                                 },
-                                label = { Text(day) }
+                                label = { Text(day) },
+                                colors = appFilterChipColors()
                             )
                         }
                     }
@@ -535,7 +794,7 @@ fun AddEventDialog(initialDate: LocalDate, onDismiss: () -> Unit, onSave: (Event
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Activar alarma", color = CuidaTextPrimary)
                     Spacer(modifier = Modifier.weight(1f))
-                    Switch(checked = hasAlarm, onCheckedChange = { hasAlarm = it })
+                    Switch(checked = hasAlarm, onCheckedChange = { hasAlarm = it }, colors = appSwitchColors())
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -566,22 +825,34 @@ fun AddEventDialog(initialDate: LocalDate, onDismiss: () -> Unit, onSave: (Event
     }
 }
 
+// Diálogo de detalle y edición de un evento: muestra el nombre y permite editar
+// la descripción, la hora, si es recurrente (y en qué días) y si tiene alarma.
+// Al guardar reemplaza el evento (mismo id) y reprograma la alarma.
 @Composable
 fun EventDetailsDialog(
     event: Event,
     date: LocalDate,
     onDismiss: () -> Unit,
+    onSave: (Event) -> Unit,
     onDeleteDay: () -> Unit,
     onDeleteAll: () -> Unit
 ) {
     val style = eventStyleFor(event.name)
+    val context = LocalContext.current
+
+    var description by remember { mutableStateOf(event.description ?: "") }
+    var selectedTime by remember { mutableStateOf(event.time) }
+    var isRecurring by remember { mutableStateOf(event.isRecurring) }
+    var selectedDays by remember { mutableStateOf(event.recurringDays.toSet()) }
+    var hasAlarm by remember { mutableStateOf(event.hasAlarm) }
+
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             shape = RoundedCornerShape(28.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+            Column(modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
@@ -603,28 +874,107 @@ fun EventDetailsDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
+                // Descripción editable.
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Descripción (opcional)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                    shape = RoundedCornerShape(18.dp),
+                    colors = appTextFieldColors()
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Hora editable.
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(20.dp), tint = CuidaTextSecondary)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "${event.time.format(DateTimeFormatter.ofPattern("HH:mm"))} - ${date.format(DateTimeFormatter.ofPattern("d MMMM yyyy", spanishLocale))}",
-                        fontSize = 15.sp,
-                        color = CuidaTextPrimary
+                        text = "Hora: ${selectedTime.format(DateTimeFormatter.ofPattern("HH:mm"))}",
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable(role = Role.Button) {
+                                TimePickerDialog(context, { _, hour, minute ->
+                                    selectedTime = LocalTime.of(hour, minute)
+                                }, selectedTime.hour, selectedTime.minute, true).show()
+                            }
+                            .semantics { contentDescription = "Cambiar hora, actual ${selectedTime.format(DateTimeFormatter.ofPattern("HH:mm"))}" }
+                            .padding(6.dp),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = CuidaGreen
                     )
                 }
 
-                if (!event.description.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(verticalAlignment = Alignment.Top) {
-                        Icon(Icons.Default.Notes, contentDescription = null, modifier = Modifier.size(20.dp), tint = CuidaTextSecondary)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(event.description, fontSize = 14.sp, color = CuidaTextSecondary)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // ¿Es recurrente?
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("¿Es recurrente?", color = CuidaTextPrimary)
+                    Spacer(modifier = Modifier.weight(1f))
+                    Switch(checked = isRecurring, onCheckedChange = { isRecurring = it }, colors = appSwitchColors())
+                }
+
+                if (isRecurring) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Repetir los días:", color = CuidaTextPrimary)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        val days = listOf("L", "M", "X", "J", "V", "S", "D")
+                        days.forEachIndexed { index, day ->
+                            val dayNum = index + 1
+                            val isSelected = selectedDays.contains(dayNum)
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = {
+                                    selectedDays = if (isSelected) selectedDays - dayNum else selectedDays + dayNum
+                                },
+                                label = { Text(day) },
+                                colors = appFilterChipColors()
+                            )
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
-                HorizontalDivider(color = CuidaDivider)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Activar alarma.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Activar alarma", color = CuidaTextPrimary)
+                    Spacer(modifier = Modifier.weight(1f))
+                    Switch(checked = hasAlarm, onCheckedChange = { hasAlarm = it }, colors = appSwitchColors())
+                }
+
                 Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = {
+                        onSave(
+                            event.copy(
+                                description = description.ifBlank { null },
+                                time = selectedTime,
+                                dates = if (isRecurring) emptyList() else event.dates,
+                                isRecurring = isRecurring,
+                                recurringDays = selectedDays.toList(),
+                                hasAlarm = hasAlarm
+                            )
+                        )
+                    },
+                    enabled = !isRecurring || selectedDays.isNotEmpty(),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = CuidaGreen),
+                    shape = RoundedCornerShape(percent = 50)
+                ) {
+                    Text("Guardar cambios", fontWeight = FontWeight.ExtraBold)
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(color = CuidaDivider)
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Text("Eliminar:", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CuidaRed)
 
@@ -646,15 +996,6 @@ fun EventDetailsDialog(
                     Icon(Icons.Default.Delete, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Todas las alarmas con este nombre")
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    Button(
-                        onClick = onDismiss,
-                        colors = ButtonDefaults.buttonColors(containerColor = CuidaGreen),
-                        shape = RoundedCornerShape(percent = 50)
-                    ) { Text("Cerrar", fontWeight = FontWeight.Bold) }
                 }
             }
         }
