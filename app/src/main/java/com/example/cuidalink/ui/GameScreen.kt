@@ -61,31 +61,34 @@ fun GameScreen(
         verticalArrangement = Arrangement.Center
     ) {
         if (!hasContactPermission) {
-            Text("Se necesita permiso para leer contactos")
+            Text("Necesitamos ver tus contactos para poder jugar", style = MaterialTheme.typography.bodyLarge)
+            Spacer(modifier = Modifier.height(16.dp))
             Button(onClick = { launcher.launch(Manifest.permission.READ_CONTACTS) }) {
-                Text("Conceder Permiso")
+                Text("Permitir acceso")
             }
         } else if (state.isLoading) {
             CircularProgressIndicator()
-        } else if (state.isGameOver) {
-            Text("¡Juego Terminado!", style = MaterialTheme.typography.headlineMedium)
-            Text("Puntuación Final: ${state.score}", modifier = Modifier.padding(vertical = 8.dp))
-            state.message?.let { Text(it) }
             Spacer(modifier = Modifier.height(16.dp))
+            Text("Preparando el juego...")
+        } else if (state.isGameOver) {
+            Text("¡Buen juego!", style = MaterialTheme.typography.headlineMedium)
+            Text("Has conseguido ${state.score} puntos", modifier = Modifier.padding(vertical = 8.dp))
+            state.message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+            Spacer(modifier = Modifier.height(24.dp))
             Button(onClick = { viewModel.fetchContacts(context.contentResolver) }) {
-                Text("Reiniciar")
+                Text("Volver a jugar")
             }
         } else {
             state.currentContact?.let { contact ->
-                Text("¿Quién es?", style = MaterialTheme.typography.headlineMedium)
+                Text("¿Sabes quién es?", style = MaterialTheme.typography.headlineMedium)
                 
                 Spacer(modifier = Modifier.height(24.dp))
                 
                 AsyncImage(
                     model = contact.photoUri,
-                    contentDescription = "Foto de perfil",
+                    contentDescription = "Foto del contacto",
                     modifier = Modifier
-                        .size(200.dp)
+                        .size(220.dp)
                         .clip(CircleShape),
                     contentScale = ContentScale.Crop
                 )
@@ -104,16 +107,18 @@ fun GameScreen(
                 }
                 
                 state.message?.let {
+                    val isSuccess = it.contains("acertado") || it.contains("bien")
                     Text(
                         text = it,
-                        color = if (it.startsWith("¡Correcto!")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(top = 8.dp)
+                        color = if (isSuccess) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(top = 16.dp)
                     )
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                Text("Puntuación: ${state.score}", style = MaterialTheme.typography.bodyLarge)
+                Text("Puntuación actual: ${state.score}", style = MaterialTheme.typography.bodyLarge)
             }
         }
     }
