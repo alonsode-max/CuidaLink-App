@@ -1,13 +1,21 @@
 package com.example.cuidalink.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.cuidalink.model.Caretaker
+import com.example.cuidalink.model.Patient
 import com.example.cuidalink.network.SupabaseConfig
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
+import io.github.jan.supabase.auth.status.SessionStatus
+import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import java.time.Instant
 
 sealed class AuthState {
     object Idle : AuthState()
@@ -20,6 +28,19 @@ sealed class AuthState {
 class LoginViewModel : ViewModel() {
     private val _authState = MutableStateFlow<AuthState>(AuthState.Idle)
     val authState = _authState.asStateFlow()
+
+    init {
+        // Observamos el estado de la sesión automáticamente para persistencia
+        viewModelScope.launch {
+            SupabaseConfig.client.auth.sessionStatus.collect { status ->
+                when (status) {
+                    is SessionStatus.Authenticated -> _authState.value = AuthState.Authenticated
+                    is SessionStatus.NotAuthenticated -> _authState.value = AuthState.Idle
+                    else -> {}
+                }
+            }
+        }
+    }
 
     fun login(email: String, pass: String) {
         if (email.isBlank() || pass.isBlank()) {
@@ -34,42 +55,100 @@ class LoginViewModel : ViewModel() {
                     this.email = email
                     password = pass
                 }
-                _authState.value = AuthState.Authenticated
+                // No es necesario actualizar _authState aquí, sessionStatus lo hará
             } catch (e: Exception) {
                 _authState.value = AuthState.Error(mapError(e))
             }
         }
     }
 
-    fun signUp(email: String, pass: String) {
-        if (email.isBlank() || pass.isBlank()) {
-            _authState.value = AuthState.Error("Por favor, rellena todos los campos")
-            return
+    fun signUpPatient(
+        email: String, pass: String, name: String, age: Int,
+        bloodGroup: String, allergies: String, weight: Float, height: Float
+    ) {
+        viewModelScope.launch {
+            _authState.value = AuthState.Loading
+            try {
+                val authResponse = SupabaseConfig.client.auth.signUpWith(Email) {
+                    this.email = email
+                    this.password = pass
+                    data = buildJsonObject {
+                        put("name", name)
+                        put("role", "patient")
+                        put("age", age)
+                        put("blood_group", bloodGroup)
+                        put("allergies", allergies)
+                        put("weight", weight)
+                        put("height", height)
+                    }
+                }
+
+                val userId = authResponse?.id ?: throw Exception("Error al obtener ID")
+
+                val patient = Patient(
+                    uid = userId,
+                    name = name,
+                    email = email,
+                    fcmToken = "token_placeholder",
+                    age = age,
+                    bloodGroup = bloodGroup,
+                    allergies = allergies,
+                    weight = weight,
+                    height = height,
+                    createdAt = Instant.now().toString()
+                )
+
+                try {
+                    SupabaseConfig.client.postgrest["patients"].insert(patient)
+                } catch (e: Exception) {
+                    val errorMsg = e.message ?: ""
+                    if (!errorMsg.contains("duplicate key", ignoreCase = true)) {
+                        throw e
+                    }
+                }
+                // El estado Authenticated se actualizará vía sessionStatus
+            } catch (e: Exception) {
+                _authState.value = AuthState.Error(mapError(e))
+            }
         }
-        if (pass.length < 6) {
-            _authState.value = AuthState.Error("La contraseña debe tener al menos 6 caracteres")
+    }
+
+    fun signUpCaretaker(email: String, pass: String, name: String) {
+        if (email.isBlank() || pass.isBlank() || name.isBlank()) {
+            _authState.value = AuthState.Error("Por favor, rellena los campos obligatorios")
             return
         }
 
         viewModelScope.launch {
             _authState.value = AuthState.Loading
             try {
-                // Realizamos el registro
-                SupabaseConfig.client.auth.signUpWith(Email) {
+                val authResponse = SupabaseConfig.client.auth.signUpWith(Email) {
                     this.email = email
                     password = pass
                 }
 
-                // IMPORTANTE: Forzamos el cierre de sesión inmediata por si Supabase
-                // nos ha logueado automáticamente (ocurre si no hay confirmación por email).
-                // Esto evita que el usuario "salte" dentro de la app sin querer.
-                SupabaseConfig.client.auth.signOut()
+                val userId = authResponse?.id ?: throw Exception("Error al obtener ID de usuario")
+                val now = Instant.now().toString()
+                val fcmToken = "token_placeholder"
 
-                // Cambiamos el estado a Success para mostrar el mensaje y quedarnos en la pantalla de Login
-                _authState.value = AuthState.Success(
-                    "¡Registro completado! Por favor, ahora introduce tus datos arriba e inicia sesión."
+                val caretaker = Caretaker(
+                    uid = userId,
+                    name = name,
+                    email = email,
+                    fcmToken = fcmToken,
+                    createdAt = now
                 )
+
+                try {
+                    SupabaseConfig.client.postgrest["caretakers"].insert(caretaker)
+                } catch (e: Exception) {
+                    val errorMsg = e.message ?: ""
+                    if (!errorMsg.contains("duplicate key", ignoreCase = true)) {
+                        throw e
+                    }
+                }
             } catch (e: Exception) {
+                Log.e("SignUp", "Error: ${e.message}", e)
                 _authState.value = AuthState.Error(mapError(e))
             }
         }
@@ -85,22 +164,26 @@ class LoginViewModel : ViewModel() {
     fun logout() {
         viewModelScope.launch {
             SupabaseConfig.client.auth.signOut()
-            _authState.value = AuthState.Idle
+            // sessionStatus actualizará _authState a Idle
         }
     }
 
     private fun mapError(e: Exception): String {
         val message = e.message ?: ""
-        // Imprimimos el error en el Logcat para verlo mientras programas
         android.util.Log.e("SupabaseError", "Error detectado: $message")
 
         return when {
             message.contains("Invalid login credentials", ignoreCase = true) ->
                 "Email o contraseña incorrectos"
-            // Captura el error de duplicado (solo si desactivas la protección en Attack Protection)
             message.contains("already registered", ignoreCase = true) ||
             message.contains("already exists", ignoreCase = true) ->
                 "Este correo ya está registrado"
+            message.contains("duplicate key", ignoreCase = true) ->
+                "Este registro ya existe en la base de datos"
+            message.contains("violates row-level security policy", ignoreCase = true) ||
+            message.contains("42501", ignoreCase = true) ||
+            message.contains("operator does not exist", ignoreCase = true) ->
+                "Error de permisos (RLS) o tipos. Verifica que la política use ::text en auth.uid()."
             message.contains("Email not confirmed", ignoreCase = true) ->
                 "Por favor, confirma tu email antes de entrar"
             message.contains("Unable to resolve host", ignoreCase = true) || 

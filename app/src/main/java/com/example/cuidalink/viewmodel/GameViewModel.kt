@@ -11,6 +11,8 @@ import com.example.cuidalink.network.SupabaseConfig
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.storage.storage
 import io.ktor.http.ContentType
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,10 +35,21 @@ class GameViewModel : ViewModel() {
     val gameState: StateFlow<GameUiState> = _gameState.asStateFlow()
 
     private var availableContacts = listOf<Contact>()
+    private var messageJob: Job? = null
+
+    private fun showMessage(message: String, duration: Long = 3000L) {
+        messageJob?.cancel()
+        _gameState.value = _gameState.value.copy(message = message)
+        messageJob = viewModelScope.launch {
+            delay(duration)
+            _gameState.value = _gameState.value.copy(message = null)
+        }
+    }
 
     fun fetchContacts(contentResolver: ContentResolver) {
         viewModelScope.launch {
-            _gameState.value = _gameState.value.copy(isLoading = true)
+            messageJob?.cancel()
+            _gameState.value = _gameState.value.copy(isLoading = true, message = null)
             val contacts = mutableListOf<Contact>()
             
             try {
@@ -81,10 +94,8 @@ class GameViewModel : ViewModel() {
                 )
                 nextQuestion()
             } catch (e: Exception) {
-                _gameState.value = _gameState.value.copy(
-                    isLoading = false,
-                    message = "No hemos podido leer tus contactos. Revisa los permisos."
-                )
+                _gameState.value = _gameState.value.copy(isLoading = false)
+                showMessage("No hemos podido leer tus contactos. Revisa los permisos.")
             }
         }
     }
@@ -95,17 +106,14 @@ class GameViewModel : ViewModel() {
             val uid = user.id
             val bucket = SupabaseConfig.client.storage.from("contacts")
             
-            // Listar archivos en la carpeta del usuario
             val remoteFiles = bucket.list(uid)
             
-            // Usamos map para transformar la lista, llamando a createSignedUrl para cada una
             localContacts.map { contact ->
                 val remoteFileName = "contact_${contact.id}.jpg"
                 val hasRemotePhoto = remoteFiles.any { it.name == remoteFileName }
                 
                 if (hasRemotePhoto) {
                     val filePath = "$uid/$remoteFileName"
-                    // Generamos una URL firmada para acceder a archivos privados
                     val signedUrl = bucket.createSignedUrl(filePath, 2.hours)
                     contact.copy(photoUri = Uri.parse(signedUrl))
                 } else {
@@ -124,15 +132,11 @@ class GameViewModel : ViewModel() {
         val isCorrect = guess == contactName
         
         if (isCorrect) {
-            _gameState.value = currentState.copy(
-                score = currentState.score + 1,
-                message = "¡Muy bien! Has acertado."
-            )
+            _gameState.value = currentState.copy(score = currentState.score + 1)
+            showMessage("¡Muy bien! Has acertado.")
             nextQuestion()
         } else {
-            _gameState.value = currentState.copy(
-                message = "¡Oh! Casi. Era ${contactName}."
-            )
+            showMessage("¡Oh! Casi. Era $contactName.")
             nextQuestion()
         }
     }
@@ -157,11 +161,12 @@ class GameViewModel : ViewModel() {
                 isLoading = false
             )
         } else {
+            val gameOverMsg = if (_gameState.value.score > 0) "¡Has terminado! Buen trabajo." else "No tienes contactos con foto para jugar."
             _gameState.value = _gameState.value.copy(
                 isGameOver = true,
-                currentContact = null,
-                message = if (_gameState.value.score > 0) "¡Has terminado! Buen trabajo." else "No tienes contactos con foto para jugar."
+                currentContact = null
             )
+            showMessage(gameOverMsg, 5000L) // Los mensajes de fin de juego duran un poco más
         }
     }
 
@@ -185,7 +190,6 @@ class GameViewModel : ViewModel() {
                     contentType = ContentType.Image.JPEG
                 }
 
-                // Al terminar de subir, obtenemos la URL firmada para refrescar la UI
                 val signedUrl = bucket.createSignedUrl(fileName, 2.hours)
                 val remoteUri = Uri.parse(signedUrl)
 
@@ -197,14 +201,12 @@ class GameViewModel : ViewModel() {
 
                 _gameState.value = _gameState.value.copy(
                     allContacts = updatedContacts.sortedBy { it.name },
-                    isLoading = false,
-                    message = "Foto guardada correctamente en la nube"
+                    isLoading = false
                 )
+                showMessage("Foto guardada correctamente en la nube")
             } catch (e: Exception) {
-                _gameState.value = _gameState.value.copy(
-                    isLoading = false,
-                    message = "Error al subir: ${e.message}"
-                )
+                _gameState.value = _gameState.value.copy(isLoading = false)
+                showMessage("Error al subir: ${e.message}")
             }
         }
     }

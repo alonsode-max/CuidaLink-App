@@ -124,7 +124,7 @@ class MainActivity : ComponentActivity() {
                     )
                     NavigationBarItem(
                         icon = { Icon(Icons.Default.Logout, contentDescription = null) },
-                        label = { Text("Salir") },
+                        label = { Text("Cerrar sesión") },
                         selected = false,
                         onClick = { loginViewModel.logout() }
                     )

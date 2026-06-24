@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 
 class CalendarViewModel : ViewModel() {
     private val _events = MutableStateFlow<List<Event>>(emptyList())
@@ -19,11 +20,9 @@ class CalendarViewModel : ViewModel() {
         _events.value = _events.value.mapNotNull { e ->
             if (e.id == event.id) {
                 if (e.isRecurring) {
-                    // Si es recurrente, no es trivial eliminar un solo día sin añadir excepciones.
-                    // Por ahora, si es recurrente lo tratamos como eliminar todo o nada,
-                    // o podrías implementar una lista de exclusión.
-                    // Para simplificar según lo pedido, si es una fecha específica:
-                    e.copy(dates = e.dates.filter { it != date })
+                    // Para eventos recurrentes, eliminar un día específico requeriría una lista de exclusión.
+                    // Por ahora, mantenemos la lógica simple de eliminar el evento completo o ignorar la petición.
+                    e
                 } else {
                     val newDates = e.dates.filter { it != date }
                     if (newDates.isEmpty()) null else e.copy(dates = newDates)
@@ -41,7 +40,20 @@ class CalendarViewModel : ViewModel() {
     fun getEventsForDate(date: LocalDate): List<Event> {
         return _events.value.filter { event ->
             if (event.isRecurring) {
-                event.recurringDays.contains(date.dayOfWeek.value)
+                val start = event.startDate ?: return@filter false
+                
+                // Si la fecha es anterior al inicio, no se muestra
+                if (date.isBefore(start)) return@filter false
+                
+                // Si tiene fin y la fecha es posterior, no se muestra
+                if (event.hasPeriod && event.endDate != null && date.isAfter(event.endDate)) {
+                    return@filter false
+                }
+                
+                // Comprobamos si coincide con el intervalo de días
+                val daysBetween = ChronoUnit.DAYS.between(start, date)
+                val interval = event.recurrenceInterval ?: 1
+                daysBetween % interval == 0L
             } else {
                 event.dates.contains(date)
             }
