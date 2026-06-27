@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 
 class CalendarViewModel : ViewModel() {
     private val _events = MutableStateFlow<List<Event>>(emptyList())
@@ -61,7 +62,20 @@ class CalendarViewModel : ViewModel() {
     fun getEventsForDate(date: LocalDate): List<Event> {
         return _events.value.filter { event ->
             if (event.isRecurring) {
-                event.recurringDays.contains(date.dayOfWeek.value)
+                val start = event.startDate ?: return@filter false
+                
+                // Si la fecha es anterior al inicio, no se muestra
+                if (date.isBefore(start)) return@filter false
+                
+                // Si tiene fin y la fecha es posterior, no se muestra
+                if (event.hasPeriod && event.endDate != null && date.isAfter(event.endDate)) {
+                    return@filter false
+                }
+                
+                // Comprobamos si coincide con el intervalo de días
+                val daysBetween = ChronoUnit.DAYS.between(start, date)
+                val interval = event.recurrenceInterval ?: 1
+                daysBetween % interval == 0L
             } else {
                 event.dates.contains(date)
             }

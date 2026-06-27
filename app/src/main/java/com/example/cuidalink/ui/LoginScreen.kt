@@ -1,302 +1,198 @@
 package com.example.cuidalink.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.example.cuidalink.ui.theme.CuidaGreen
-import com.example.cuidalink.ui.theme.CuidaGreenSurface
-import com.example.cuidalink.ui.theme.CuidaHeaderGradientEnd
-import com.example.cuidalink.ui.theme.CuidaRed
-import com.example.cuidalink.ui.theme.CuidaTextPrimary
-import com.example.cuidalink.ui.theme.CuidaTextSecondary
-import com.example.cuidalink.ui.theme.LocalDarkThemeActive
-import com.example.cuidalink.ui.theme.keepOriginalColorsInDark
+import com.example.cuidalink.viewmodel.AuthState
+import com.example.cuidalink.viewmodel.LoginViewModel
 
-/** Pantalla de inicio de sesion: valida credenciales y enruta por rol. */
 @Composable
-fun LoginScreen(
-    modifier: Modifier = Modifier,
-    onLogin: (email: String, password: String) -> Unit,
-    isLoading: Boolean = false,
-    errorMessage: String? = null,
-    onNavigateToRegister: () -> Unit = {}
-) {
+fun LoginScreen(viewModel: LoginViewModel) {
+    var isRegisterMode by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
+    
+    // Campos adicionales para registro
+    var name by remember { mutableStateOf("") }
+    var isPatient by remember { mutableStateOf(true) }
+    
+    // Campos específicos de paciente
+    var age by remember { mutableStateOf("") }
+    var bloodGroup by remember { mutableStateOf("") }
+    var allergies by remember { mutableStateOf("") }
+    var weight by remember { mutableStateOf("") }
+    var height by remember { mutableStateOf("") }
+
+    val authState by viewModel.authState.collectAsState()
+    val scrollState = rememberScrollState()
 
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .padding(16.dp)
+            .verticalScroll(scrollState),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        LoginHeader()
+        Text(
+            text = "CuidaLink", 
+            style = MaterialTheme.typography.headlineLarge,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(32.dp))
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .offset(y = (-24).dp)
-                .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
-                .background(Color.White)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp)
-                .padding(top = 26.dp, bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(
-                text = "Iniciar sesión",
-                fontSize = 26.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = CuidaTextPrimary
-            )
+        Text(
+            text = if (isRegisterMode) "Crear cuenta" else "Bienvenido",
+            style = MaterialTheme.typography.headlineSmall
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (isRegisterMode) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                FilterChip(
+                    selected = isPatient,
+                    onClick = { isPatient = true },
+                    label = { Text("Paciente") }
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                FilterChip(
+                    selected = !isPatient,
+                    onClick = { isPatient = false },
+                    label = { Text("Cuidador") }
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
 
             OutlinedTextField(
-                value = email,
-                onValueChange = { email = it },
-                label = { Text("Correo") },
-                enabled = !isLoading,
-                singleLine = true,
-                leadingIcon = {
-                    Icon(imageVector = Icons.Filled.Person, contentDescription = null)
-                },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                colors = fieldColors(),
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Nombre completo") },
                 modifier = Modifier.fillMaxWidth()
             )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
 
+        OutlinedTextField(
+            value = email,
+            onValueChange = { email = it },
+            label = { Text("Correo electrónico") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it },
+            label = { Text("Contraseña") },
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (isRegisterMode && isPatient) {
             OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = { Text("Contraseña") },
-                enabled = !isLoading,
-                singleLine = true,
-                leadingIcon = {
-                    Icon(imageVector = Icons.Filled.Lock, contentDescription = null)
-                },
-                trailingIcon = {
-                    val icon = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
-                    val desc = if (passwordVisible) "Ocultar contraseña" else "Mostrar contraseña"
-                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                        Icon(imageVector = icon, contentDescription = desc)
+                value = age,
+                onValueChange = { age = it },
+                label = { Text("Edad") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = bloodGroup,
+                onValueChange = { bloodGroup = it },
+                label = { Text("Grupo sanguíneo") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = allergies,
+                onValueChange = { allergies = it },
+                label = { Text("Alergias") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = weight,
+                    onValueChange = { weight = it },
+                    label = { Text("Peso (kg)") },
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                OutlinedTextField(
+                    value = height,
+                    onValueChange = { height = it },
+                    label = { Text("Altura (cm)") },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        if (authState is AuthState.Loading) {
+            CircularProgressIndicator()
+        } else {
+            Button(
+                onClick = {
+                    if (isRegisterMode) {
+                        if (isPatient) {
+                            viewModel.signUpPatient(
+                                email = email,
+                                pass = password,
+                                name = name,
+                                age = age.toIntOrNull() ?: 0,
+                                bloodGroup = bloodGroup,
+                                allergies = allergies,
+                                weight = weight.toFloatOrNull() ?: 0f,
+                                height = height.toFloatOrNull() ?: 0f
+                            )
+                        } else {
+                            viewModel.signUpCaretaker(email, password, name)
+                        }
+                    } else {
+                        viewModel.login(email, password)
                     }
                 },
-                visualTransformation =
-                    if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                colors = fieldColors(),
                 modifier = Modifier.fillMaxWidth()
-            )
-
-            if (errorMessage != null) {
-                Text(
-                    text = errorMessage,
-                    color = CuidaRed,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-
-            Button(
-                onClick = { onLogin(email, password) },
-                enabled = email.isNotBlank() && password.isNotBlank() && !isLoading,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 56.dp),
-                shape = RoundedCornerShape(percent = 50),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = CuidaGreen,
-                    contentColor = Color.White
-                )
             ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        color = Color.White,
-                        strokeWidth = 2.5.dp,
-                        modifier = Modifier.size(24.dp)
-                    )
-                } else {
-                    Text(text = "Entrar", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
-                }
+                Text(if (isRegisterMode) "Completar Registro" else "Iniciar Sesión")
             }
-
-            RegisterLink(onNavigateToRegister = onNavigateToRegister)
-
-            DemoCredentialsHint()
+            
+            TextButton(
+                onClick = { isRegisterMode = !isRegisterMode },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(if (isRegisterMode) "¿Ya tienes cuenta? Inicia sesión" else "¿No tienes cuenta? Regístrate")
+            }
         }
-    }
-}
 
-// Cabecera verde de marca con icono y nombre de la app.
-@Composable
-private fun LoginHeader() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(230.dp)
-            .keepOriginalColorsInDark()
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        CuidaGreen,
-                        CuidaGreen,
-                        if (LocalDarkThemeActive.current) Color(0xFF262729) else CuidaHeaderGradientEnd
-                    )
-                )
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.padding(bottom = 20.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(76.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.22f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Person,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(40.dp)
-                )
-            }
+        if (authState is AuthState.Error) {
             Text(
-                text = "CuidaLink",
-                color = Color.White,
-                fontSize = 34.sp,
-                fontWeight = FontWeight.ExtraBold,
-                textAlign = TextAlign.Center
+                text = (authState as AuthState.Error).message,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = 8.dp)
             )
+        }
+
+        if (authState is AuthState.Success) {
             Text(
-                text = "Acompañando cada día",
-                color = Color.White.copy(alpha = 0.9f),
-                fontSize = 15.sp,
-                textAlign = TextAlign.Center
+                text = (authState as AuthState.Success).message,
+                color = Color(0xFF4CAF50),
+                modifier = Modifier.padding(top = 8.dp)
             )
         }
     }
 }
-
-// Enlace al flujo de registro para quien aún no tiene cuenta.
-@Composable
-private fun RegisterLink(onNavigateToRegister: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = "¿No tienes cuenta? ",
-            fontSize = 14.sp,
-            color = CuidaTextSecondary
-        )
-        Text(
-            text = "Crear cuenta",
-            modifier = Modifier
-                .heightIn(min = 48.dp)
-                .clickable(onClick = onNavigateToRegister)
-                .padding(vertical = 12.dp),
-            fontSize = 14.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = CuidaGreen
-        )
-    }
-}
-
-// Recordatorio visible de las cuentas de demo (frontend sin backend).
-@Composable
-private fun DemoCredentialsHint() {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(CuidaGreenSurface)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Text(
-            text = "Cuentas de prueba",
-            fontSize = 14.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = CuidaTextPrimary
-        )
-        DemoCredentialRow(label = "Paciente", value = "paciente@cuidalink.com · 1234")
-        DemoCredentialRow(label = "Cuidador", value = "cuidador@cuidalink.com · 1234")
-    }
-}
-
-@Composable
-private fun DemoCredentialRow(label: String, value: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = "$label:",
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = CuidaTextPrimary,
-            modifier = Modifier.width(72.dp)
-        )
-        Text(
-            text = value,
-            fontSize = 13.sp,
-            color = CuidaTextSecondary
-        )
-    }
-}
-
-@Composable
-private fun fieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = CuidaGreen,
-    focusedLabelColor = CuidaGreen,
-    focusedLeadingIconColor = CuidaGreen,
-    cursorColor = CuidaGreen
-)

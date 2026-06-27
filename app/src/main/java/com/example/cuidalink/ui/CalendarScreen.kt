@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -49,6 +50,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -69,6 +71,12 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 import kotlin.math.abs
+import java.time.temporal.ChronoUnit
+import java.util.*
+
+enum class CalendarView {
+    DAY, WEEK, MONTH
+}
 
 @Composable
 fun CalendarScreen(
@@ -656,13 +664,17 @@ fun AddEventDialog(initialDate: LocalDate, onDismiss: () -> Unit, onSave: (Event
     var name by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var isRecurring by remember { mutableStateOf(false) }
+    var recurrenceInterval by remember { mutableStateOf("1") }
+    var hasPeriod by remember { mutableStateOf(false) }
+    var startDate by remember { mutableStateOf(initialDate) }
+    var endDate by remember { mutableStateOf(initialDate.plusMonths(1)) }
+    
     var selectedDates by remember { mutableStateOf(setOf(initialDate)) }
     var selectedTime by remember { mutableStateOf(LocalTime.now()) }
-    var selectedDays by remember { mutableStateOf(setOf<Int>()) }
     var hasAlarm by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
-    val scrollState = rememberScrollState()
+    val dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -764,24 +776,65 @@ fun AddEventDialog(initialDate: LocalDate, onDismiss: () -> Unit, onSave: (Event
 
                 if (isRecurring) {
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Repetir los días:", color = CuidaTextPrimary)
-                    Row(
-                        modifier = Modifier.fillMaxWidth().horizontalScroll(scrollState).padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        val days = listOf("L", "M", "X", "J", "V", "S", "D")
-                        days.forEachIndexed { index, day ->
-                            val dayNum = index + 1
-                            val isSelected = selectedDays.contains(dayNum)
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = {
-                                    selectedDays = if (isSelected) selectedDays - dayNum else selectedDays + dayNum
-                                },
-                                label = { Text(day) },
-                                colors = appFilterChipColors()
-                            )
-                        }
+                    OutlinedTextField(
+                        value = recurrenceInterval,
+                        onValueChange = { if (it.all { char -> char.isDigit() }) recurrenceInterval = it },
+                        label = { Text("Repetir cada (días)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("¿Tiene un plazo?")
+                        Spacer(modifier = Modifier.weight(1f))
+                        Switch(checked = hasPeriod, onCheckedChange = { hasPeriod = it })
+                    }
+                    
+                    if (hasPeriod) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Fecha de inicio: ${startDate.format(dateFormatter)}",
+                            modifier = Modifier.clickable {
+                                DatePickerDialog(context, { _, y, m, d -> startDate = LocalDate.of(y, m + 1, d) }, 
+                                    startDate.year, startDate.monthValue - 1, startDate.dayOfMonth).show()
+                            },
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Fecha de fin: ${endDate.format(dateFormatter)}",
+                            modifier = Modifier.clickable {
+                                DatePickerDialog(context, { _, y, m, d -> endDate = LocalDate.of(y, m + 1, d) }, 
+                                    endDate.year, endDate.monthValue - 1, endDate.dayOfMonth).show()
+                            },
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Fecha de inicio: ${startDate.format(dateFormatter)}",
+                            modifier = Modifier.clickable {
+                                DatePickerDialog(context, { _, y, m, d -> startDate = LocalDate.of(y, m + 1, d) }, 
+                                    startDate.year, startDate.monthValue - 1, startDate.dayOfMonth).show()
+                            },
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                } else {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Selecciona días:", style = MaterialTheme.typography.titleSmall)
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Button(onClick = {
+                            DatePickerDialog(context, { _, year, month, day ->
+                                selectedDates = selectedDates + LocalDate.of(year, month + 1, day)
+                            }, initialDate.year, initialDate.monthValue - 1, initialDate.dayOfMonth).show()
+                        }) { Text("Añadir día") }
+                    }
+                    selectedDates.toList().sorted().forEach { date ->
+                        AssistChip(
+                            onClick = { if (selectedDates.size > 1) selectedDates = selectedDates - date },
+                            label = { Text(date.format(dateFormatter)) },
+                            trailingIcon = { Icon(Icons.Default.Close, null, Modifier.size(16.dp)) }
+                        )
                     }
                 }
 
@@ -797,24 +850,20 @@ fun AddEventDialog(initialDate: LocalDate, onDismiss: () -> Unit, onSave: (Event
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = onDismiss) { Text("Cancelar") }
-                    Button(
-                        onClick = {
-                            onSave(Event(
-                                name = name,
-                                description = if (description.isBlank()) null else description,
-                                time = selectedTime,
-                                dates = if (isRecurring) emptyList() else selectedDates.toList(),
-                                isRecurring = isRecurring,
-                                recurringDays = selectedDays.toList(),
-                                hasAlarm = hasAlarm
-                            ))
-                        },
-                        enabled = name.isNotBlank() && (isRecurring && selectedDays.isNotEmpty() || !isRecurring),
-                        colors = ButtonDefaults.buttonColors(containerColor = CuidaGreen),
-                        shape = RoundedCornerShape(percent = 50)
-                    ) {
-                        Text("Guardar", fontWeight = FontWeight.ExtraBold)
-                    }
+                    Button(onClick = {
+                        onSave(Event(
+                            name = name,
+                            description = description.takeIf { it.isNotBlank() },
+                            time = selectedTime,
+                            dates = if (isRecurring) emptyList() else selectedDates.toList(),
+                            isRecurring = isRecurring,
+                            recurrenceInterval = recurrenceInterval.toIntOrNull() ?: 1,
+                            hasPeriod = hasPeriod,
+                            startDate = if (isRecurring) startDate else null,
+                            endDate = if (isRecurring && hasPeriod) endDate else null,
+                            hasAlarm = hasAlarm
+                        ))
+                    }, enabled = name.isNotBlank()) { Text("Guardar") }
                 }
             }
         }
@@ -823,174 +872,157 @@ fun AddEventDialog(initialDate: LocalDate, onDismiss: () -> Unit, onSave: (Event
 
 // Diálogo de detalle y edición de un evento: muestra el nombre y permite editar
 @Composable
-fun EventDetailsDialog(
-    event: Event,
-    date: LocalDate,
-    onDismiss: () -> Unit,
-    onSave: (Event) -> Unit,
-    onDeleteDay: () -> Unit,
-    onDeleteAll: () -> Unit
-) {
-    val style = eventStyleFor(event.name)
-    val context = LocalContext.current
-
-    var description by remember { mutableStateOf(event.description ?: "") }
-    var selectedTime by remember { mutableStateOf(event.time) }
-    var isRecurring by remember { mutableStateOf(event.isRecurring) }
-    var selectedDays by remember { mutableStateOf(event.recurringDays.toSet()) }
-    var hasAlarm by remember { mutableStateOf(event.hasAlarm) }
-
+fun EventDetailsDialog(event: Event, date: LocalDate, onDismiss: () -> Unit, onDeleteDay: () -> Unit, onDeleteAll: () -> Unit) {
     Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            shape = RoundedCornerShape(28.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
-        ) {
-            Column(modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
+        Card(modifier = Modifier.fillMaxWidth().padding(16.dp), shape = RoundedCornerShape(16.dp)) {
+            Column(modifier = Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(style.container),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(style.icon, contentDescription = null, tint = style.color, modifier = Modifier.size(18.dp))
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        event.name,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = CuidaTextPrimary
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Descripción editable.
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text("Descripción (opcional)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 2,
-                    shape = RoundedCornerShape(18.dp),
-                    colors = appTextFieldColors()
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Hora editable.
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(20.dp), tint = CuidaTextSecondary)
+                    Icon(Icons.Default.Event, null, tint = MaterialTheme.colorScheme.primary)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Hora: ${selectedTime.format(DateTimeFormatter.ofPattern("HH:mm"))}",
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable(role = Role.Button) {
-                                TimePickerDialog(context, { _, hour, minute ->
-                                    selectedTime = LocalTime.of(hour, minute)
-                                }, selectedTime.hour, selectedTime.minute, true).show()
-                            }
-                            .semantics { contentDescription = "Cambiar hora, actual ${selectedTime.format(DateTimeFormatter.ofPattern("HH:mm"))}" }
-                            .padding(6.dp),
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = CuidaGreen
-                    )
+                    Text(event.name, style = MaterialTheme.typography.headlineSmall)
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // ¿Es recurrente?
+                Spacer(modifier = Modifier.height(16.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("¿Es recurrente?", color = CuidaTextPrimary)
-                    Spacer(modifier = Modifier.weight(1f))
-                    Switch(checked = isRecurring, onCheckedChange = { isRecurring = it }, colors = appSwitchColors())
+                    Icon(Icons.Default.Schedule, null, Modifier.size(20.dp), tint = Color.Gray)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("${event.time.format(DateTimeFormatter.ofPattern("HH:mm"))} - ${date.format(DateTimeFormatter.ofPattern("d MMMM yyyy", Locale("es", "ES")))}")
                 }
-
-                if (isRecurring) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("Repetir los días:", color = CuidaTextPrimary)
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        val days = listOf("L", "M", "X", "J", "V", "S", "D")
-                        days.forEachIndexed { index, day ->
-                            val dayNum = index + 1
-                            val isSelected = selectedDays.contains(dayNum)
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = {
-                                    selectedDays = if (isSelected) selectedDays - dayNum else selectedDays + dayNum
-                                },
-                                label = { Text(day) },
-                                colors = appFilterChipColors()
-                            )
-                        }
+                if (!event.description.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.Top) {
+                        Icon(Icons.Default.Notes, null, Modifier.size(20.dp), tint = Color.Gray)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(event.description, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Activar alarma.
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Activar alarma", color = CuidaTextPrimary)
-                    Spacer(modifier = Modifier.weight(1f))
-                    Switch(checked = hasAlarm, onCheckedChange = { hasAlarm = it }, colors = appSwitchColors())
-                }
-
+                Spacer(modifier = Modifier.height(24.dp))
+                Divider()
                 Spacer(modifier = Modifier.height(16.dp))
-
-                Button(
-                    onClick = {
-                        onSave(
-                            event.copy(
-                                description = description.ifBlank { null },
-                                time = selectedTime,
-                                dates = if (isRecurring) emptyList() else event.dates,
-                                isRecurring = isRecurring,
-                                recurringDays = selectedDays.toList(),
-                                hasAlarm = hasAlarm
-                            )
-                        )
-                    },
-                    enabled = !isRecurring || selectedDays.isNotEmpty(),
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = CuidaGreen),
-                    shape = RoundedCornerShape(percent = 50)
-                ) {
-                    Text("Guardar cambios", fontWeight = FontWeight.ExtraBold)
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-                HorizontalDivider(color = CuidaDivider)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text("Eliminar:", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CuidaRed)
-
-                TextButton(
-                    onClick = onDeleteDay,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.textButtonColors(contentColor = CuidaRed)
-                ) {
-                    Icon(Icons.Default.Delete, contentDescription = null)
+                Text("Eliminar:", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.error)
+                TextButton(onClick = onDeleteDay, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                    Icon(Icons.Default.Delete, null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Solo este día")
                 }
-
-                TextButton(
-                    onClick = onDeleteAll,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.textButtonColors(contentColor = CuidaRed)
-                ) {
-                    Icon(Icons.Default.Delete, contentDescription = null)
+                TextButton(onClick = onDeleteAll, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                    Icon(Icons.Default.Delete, null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Todas las alarmas con este nombre")
                 }
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    Button(onClick = onDismiss) { Text("Cerrar") }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DayView(date: LocalDate, events: List<Event>, onEventClick: (Event) -> Unit) {
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(date.format(DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM", Locale("es", "ES"))), style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
+        Spacer(modifier = Modifier.height(16.dp))
+        if (events.isEmpty()) {
+            Text("No hay eventos para este día", color = Color.Gray)
+        } else {
+            LazyColumn { items(events) { EventItem(it, onClick = { onEventClick(it) }) } }
+        }
+    }
+}
+
+@Composable
+fun EventItem(event: Event, onClick: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(onClick = onClick), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(event.time.format(DateTimeFormatter.ofPattern("HH:mm")), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
+                Text(event.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                if (!event.description.isNullOrBlank()) Text(event.description, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+@Composable
+fun WeekView(selectedDate: LocalDate, viewModel: CalendarViewModel, onEventClick: (Event) -> Unit) {
+    val startOfWeek = selectedDate.minusDays(selectedDate.dayOfWeek.value.toLong() - 1)
+    val weekDays = (0..6).map { startOfWeek.plusDays(it.toLong()) }
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text("Semana del ${startOfWeek.dayOfMonth} al ${startOfWeek.plusDays(6).dayOfMonth} de ${startOfWeek.month.getDisplayName(TextStyle.FULL, Locale("es", "ES"))}", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(bottom = 16.dp))
+        LazyColumn {
+            items(weekDays) { day ->
+                val dayEvents = viewModel.getEventsForDate(day)
+                Column {
+                    Text("${day.dayOfWeek.getDisplayName(TextStyle.FULL, Locale("es", "ES"))} ${day.dayOfMonth}", style = MaterialTheme.typography.labelLarge, color = if (day == LocalDate.now()) MaterialTheme.colorScheme.primary else Color.Gray)
+                    if (dayEvents.isEmpty()) Text("Sin eventos", modifier = Modifier.padding(start = 16.dp, bottom = 8.dp), style = MaterialTheme.typography.bodySmall)
+                    else dayEvents.forEach { EventItem(it, onClick = { onEventClick(it) }) }
+                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MonthView(selectedDate: LocalDate, onDateSelected: (LocalDate) -> Unit, viewModel: CalendarViewModel, onEventClick: (Event) -> Unit) {
+    var currentMonth by remember { mutableStateOf(YearMonth.from(selectedDate)) }
+    val daysInMonth = currentMonth.lengthOfMonth()
+    val offset = currentMonth.atDay(1).dayOfWeek.value - 1
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { currentMonth = currentMonth.minusMonths(1) }) { Icon(Icons.Default.ChevronLeft, null) }
+            Text("${currentMonth.month.getDisplayName(TextStyle.FULL, Locale("es", "ES")).replaceFirstChar { it.uppercase() }} ${currentMonth.year}", style = MaterialTheme.typography.titleLarge)
+            IconButton(onClick = { currentMonth = currentMonth.plusMonths(1) }) { Icon(Icons.Default.ChevronRight, null) }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(modifier = Modifier.fillMaxWidth()) {
+            listOf("L", "M", "X", "J", "V", "S", "D").forEach { Text(it, Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        LazyVerticalGrid(columns = GridCells.Fixed(7), modifier = Modifier.fillMaxWidth()) {
+            items(offset) { Box(Modifier.aspectRatio(1f)) }
+            items(daysInMonth) { index ->
+                val date = currentMonth.atDay(index + 1)
+                val isSelected = date == selectedDate
+                val isToday = date == LocalDate.now()
+                val hasEvents = viewModel.getEventsForDate(date).isNotEmpty()
+
+                Box(modifier = Modifier.aspectRatio(1f).padding(2.dp).clip(CircleShape).background(if (isSelected) MaterialTheme.colorScheme.primary else if (isToday) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent).clickable { onDateSelected(date) }, contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(date.dayOfMonth.toString(), color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
+                        if (hasEvents) Box(modifier = Modifier.size(4.dp).clip(CircleShape).background(if (isSelected) Color.White else MaterialTheme.colorScheme.primary))
+                    }
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Text("Eventos del día:", style = MaterialTheme.typography.titleSmall)
+        val selectedDayEvents = viewModel.getEventsForDate(selectedDate)
+        if (selectedDayEvents.isEmpty()) Text("No hay eventos", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+        else LazyColumn { items(selectedDayEvents) { EventItem(it, onClick = { onEventClick(it) }) } }
+    }
+}
+
+fun scheduleAlarms(context: Context, event: Event) {
+    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    val intent = Intent(context, AlarmReceiver::class.java).apply { putExtra("EVENT_NAME", event.name) }
+
+    if (event.isRecurring) {
+        val intervalMillis = (event.recurrenceInterval ?: 1).toLong() * 24 * 60 * 60 * 1000
+        val calendar = Calendar.getInstance().apply {
+            val start = event.startDate ?: LocalDate.now()
+            set(start.year, start.monthValue - 1, start.dayOfMonth, event.time.hour, event.time.minute, 0)
+        }
+        val pendingIntent = PendingIntent.getBroadcast(context, event.id.hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        alarmManager.setRepeating(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, intervalMillis, pendingIntent)
+    } else {
+        event.dates.forEach { date ->
+            val calendar = Calendar.getInstance().apply { set(date.year, date.monthValue - 1, date.dayOfMonth, event.time.hour, event.time.minute, 0) }
+            if (calendar.after(Calendar.getInstance())) {
+                val pendingIntent = PendingIntent.getBroadcast(context, (event.id + date).hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
             }
         }
     }
