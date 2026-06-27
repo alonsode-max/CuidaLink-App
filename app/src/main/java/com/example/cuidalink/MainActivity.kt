@@ -51,6 +51,7 @@ import com.example.cuidalink.ui.FAB_DOCK_OFFSET
 import com.example.cuidalink.ui.FloatingNavItem
 import com.example.cuidalink.ui.GameScreen
 import com.example.cuidalink.ui.LoginScreen
+import com.example.cuidalink.ui.RegisterScreen
 import com.example.cuidalink.ui.SosBottomBar
 import com.example.cuidalink.ui.SosFab
 import com.example.cuidalink.ui.ProfileScreen
@@ -71,6 +72,7 @@ import com.example.cuidalink.viewmodel.AccessibilityViewModel
 import com.example.cuidalink.viewmodel.CalendarViewModel
 import com.example.cuidalink.viewmodel.ThemeMode
 import com.example.cuidalink.viewmodel.GameViewModel
+import com.example.cuidalink.viewmodel.LoginState
 import com.example.cuidalink.viewmodel.SessionViewModel
 import com.example.cuidalink.viewmodel.UserRole
 import io.github.jan.supabase.auth.auth
@@ -271,16 +273,27 @@ class MainActivity : ComponentActivity() {
                     ) {
                       // ----- Login (entrada de la app, fuera de los grafos) -----
                       composable("login") {
-                          LoginScreen(
-                              onLogin = { email, password ->
-                                  val role = sessionViewModel.authenticate(email, password)
-                                  if (role != null) {
-                                      goToRoleGraph(role)
-                                      true
-                                  } else {
-                                      false
-                                  }
+                          val loginState by sessionViewModel.loginState.collectAsState()
+                          LaunchedEffect(loginState) {
+                              val current = loginState
+                              if (current is LoginState.Success) {
+                                  goToRoleGraph(current.role)
+                                  sessionViewModel.consumeLogin()
                               }
+                          }
+                          LoginScreen(
+                              onLogin = { email, password -> sessionViewModel.login(email, password) },
+                              isLoading = loginState is LoginState.Loading,
+                              errorMessage = (loginState as? LoginState.Error)?.message,
+                              onNavigateToRegister = { navController.navigate("registro") }
+                          )
+                      }
+
+                      // ----- Registro (alta de cuenta, fuera de los grafos) -----
+                      composable("registro") {
+                          RegisterScreen(
+                              onBack = { navController.popBackStack() },
+                              onRegistered = { navController.popBackStack() }
                           )
                       }
 

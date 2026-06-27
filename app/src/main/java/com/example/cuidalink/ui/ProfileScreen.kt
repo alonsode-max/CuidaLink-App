@@ -33,6 +33,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,6 +49,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.cuidalink.model.ui.PatientProfileUi
+import com.example.cuidalink.ui.components.ProfileErrorView
+import com.example.cuidalink.ui.components.ShimmerBox
 import com.example.cuidalink.ui.icons.HugeIcons
 import com.example.cuidalink.ui.theme.CuidaBorderLight
 import com.example.cuidalink.ui.theme.CuidaGreen
@@ -59,24 +64,20 @@ import com.example.cuidalink.ui.theme.CuidaSurfaceFaint
 import com.example.cuidalink.ui.theme.CuidaTextPrimary
 import com.example.cuidalink.ui.theme.CuidaTextSecondary
 import com.example.cuidalink.ui.theme.Urbanist
+import com.example.cuidalink.viewmodel.PatientProfileViewModel
+import com.example.cuidalink.viewmodel.ProfileUiState
 
-// Datos médicos de ejemplo (SOLO UI). Estos valores fijos se sustituyen cuando
-private const val PROFILE_NAME = "Ernesto García"
-private const val PROFILE_CODE = "@E1234"
-private const val PROFILE_AGE = "78"
-private const val PROFILE_BLOOD_TYPE = "O+"
-private const val PROFILE_ALLERGY = "Alergia a la Penicilina"
-private const val PROFILE_WEIGHT = "75 kg"
-private const val PROFILE_HEIGHT = "1.70 m"
-private const val DOCTOR_NAME = "Dra. Martínez"
-private const val DOCTOR_PHONE = "600123456"
+private const val FALLBACK = "—"
 
 @Composable
 fun ProfileScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
-    onOpenContacts: () -> Unit = {}
+    onOpenContacts: () -> Unit = {},
+    viewModel: PatientProfileViewModel = viewModel()
 ) {
+    val state by viewModel.state.collectAsState()
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -86,12 +87,66 @@ fun ProfileScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         ProfileTopBar(onBack = onBack)
-        ProfileIdentity()
-        StatsCardWithPhoto()
-        VitalInfoCard()
-        SupportNetworkCard()
-        ContactsButton(onOpenContacts = onOpenContacts)
+
+        when (val current = state) {
+            is ProfileUiState.Loading -> ProfileLoading()
+            is ProfileUiState.Error -> ProfileErrorView(
+                message = current.message,
+                onRetry = { viewModel.loadCurrentPatient() }
+            )
+            is ProfileUiState.Success -> ProfileContent(
+                data = current.data,
+                onOpenContacts = onOpenContacts
+            )
+        }
         Spacer(modifier = Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun ProfileContent(data: PatientProfileUi, onOpenContacts: () -> Unit) {
+    ProfileIdentity(name = data.name, code = data.email ?: "")
+    StatsCardWithPhoto(
+        name = data.name,
+        age = data.age?.toString() ?: FALLBACK,
+        bloodType = data.bloodGroup ?: FALLBACK
+    )
+    VitalInfoCard(
+        allergy = data.allergies ?: "Sin alergias registradas",
+        weight = data.weightKg?.let { "${formatNumber(it)} kg" } ?: FALLBACK,
+        height = data.heightM?.let { "${formatNumber(it)} m" } ?: FALLBACK
+    )
+    SupportNetworkCard(
+        doctorName = data.doctorName ?: FALLBACK,
+        doctorPhone = data.doctorPhone
+    )
+    ContactsButton(onOpenContacts = onOpenContacts)
+}
+
+@Composable
+private fun ProfileLoading() {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        ShimmerBox(modifier = Modifier.size(width = 200.dp, height = 30.dp))
+        ShimmerBox(modifier = Modifier.size(width = 100.dp, height = 18.dp))
+    }
+    Spacer(modifier = Modifier.height(8.dp))
+    ShimmerBox(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(160.dp),
+        shape = RoundedCornerShape(24.dp)
+    )
+    repeat(2) {
+        ShimmerBox(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(120.dp),
+            shape = RoundedCornerShape(24.dp)
+        )
     }
 }
 
@@ -103,7 +158,7 @@ private fun ProfileTopBar(onBack: () -> Unit) {
             .padding(top = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(onClick = onBack, modifier = Modifier.size(44.dp)) {
+        IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Volver a inicio",
@@ -113,41 +168,40 @@ private fun ProfileTopBar(onBack: () -> Unit) {
     }
 }
 
-// 1. Cabecera de texto: nombre grande y código de vinculación, centrados.
 @Composable
-private fun ProfileIdentity() {
+private fun ProfileIdentity(name: String, code: String) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(
-            text = PROFILE_NAME,
+            text = name,
             fontFamily = Urbanist,
             fontSize = 30.sp,
             fontWeight = FontWeight.ExtraBold,
             color = CuidaTextPrimary
         )
-        Text(
-            text = PROFILE_CODE,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium,
-            color = CuidaTextSecondary
-        )
+        if (code.isNotBlank()) {
+            Text(
+                text = code,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                color = CuidaTextSecondary
+            )
+        }
     }
 }
 
-// 2. Tarjeta central: estadísticas (edad y grupo sanguíneo).
 private val PHOTO_SIZE = 108.dp
 private val PHOTO_OVERHANG = 50.dp
 
 @Composable
-private fun StatsCardWithPhoto() {
+private fun StatsCardWithPhoto(name: String, age: String, bloodType: String) {
     Box(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = Alignment.TopCenter
     ) {
-        // Tarjeta blanca con sombra ligera. Deja hueco arriba para la foto.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -159,10 +213,10 @@ private fun StatsCardWithPhoto() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             StatColumn(
-                value = PROFILE_AGE,
+                value = age,
                 label = "Años",
                 valueColor = CuidaGreen,
-                description = "Edad: $PROFILE_AGE años",
+                description = "Edad: $age años",
                 modifier = Modifier.weight(1f)
             )
             Box(
@@ -172,22 +226,20 @@ private fun StatsCardWithPhoto() {
                     .background(CuidaBorderLight)
             )
             StatColumn(
-                value = PROFILE_BLOOD_TYPE,
+                value = bloodType,
                 label = "Grupo Sanguíneo",
                 valueColor = CuidaTextPrimary,
-                description = "Grupo sanguíneo: $PROFILE_BLOOD_TYPE",
+                description = "Grupo sanguíneo: $bloodType",
                 modifier = Modifier.weight(1f)
             )
         }
 
-        // Foto de perfil superpuesta (con botón de edición), con anillo blanco
-        ProfilePhotoWithEdit()
+        ProfilePhotoWithEdit(name = name)
     }
 }
 
-// Foto de perfil con un botón de edición que abre un menú con dos opciones:
 @Composable
-private fun ProfilePhotoWithEdit() {
+private fun ProfilePhotoWithEdit(name: String) {
     var showMenu by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.size(PHOTO_SIZE)) {
@@ -209,14 +261,13 @@ private fun ProfilePhotoWithEdit() {
             ) {
                 Icon(
                     imageVector = HugeIcons.User,
-                    contentDescription = "Foto de perfil de $PROFILE_NAME",
+                    contentDescription = "Foto de perfil de $name",
                     tint = CuidaGreen,
                     modifier = Modifier.size(48.dp)
                 )
             }
         }
 
-        // Botón de edición (lápiz) en la esquina inferior de la foto.
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -244,14 +295,14 @@ private fun ProfilePhotoWithEdit() {
         ) {
             DropdownMenuItem(
                 text = { Text("Editar foto de perfil", fontWeight = FontWeight.SemiBold) },
-                onClick = { showMenu = false /* TODO: conectar selección de foto */ },
+                onClick = { showMenu = false },
                 leadingIcon = {
                     Icon(imageVector = Icons.Filled.Person, contentDescription = null, tint = CuidaGreen)
                 }
             )
             DropdownMenuItem(
                 text = { Text("Editar información del perfil", fontWeight = FontWeight.SemiBold) },
-                onClick = { showMenu = false /* TODO: conectar edición de datos */ },
+                onClick = { showMenu = false },
                 leadingIcon = {
                     Icon(imageVector = Icons.Filled.Edit, contentDescription = null, tint = CuidaGreen)
                 }
@@ -289,9 +340,8 @@ private fun StatColumn(
     }
 }
 
-// 3a. Tarjeta "Información Vital" (estilo bento): alergias, peso y altura.
 @Composable
-private fun VitalInfoCard() {
+private fun VitalInfoCard(allergy: String, weight: String, height: String) {
     BentoCard(title = "Información Vital") {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -310,7 +360,7 @@ private fun VitalInfoCard() {
             }
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                text = PROFILE_ALLERGY,
+                text = allergy,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 color = CuidaRed
@@ -318,8 +368,8 @@ private fun VitalInfoCard() {
         }
         Spacer(modifier = Modifier.height(14.dp))
         Row(modifier = Modifier.fillMaxWidth()) {
-            MeasureItem(label = "Peso", value = PROFILE_WEIGHT, modifier = Modifier.weight(1f))
-            MeasureItem(label = "Altura", value = PROFILE_HEIGHT, modifier = Modifier.weight(1f))
+            MeasureItem(label = "Peso", value = weight, modifier = Modifier.weight(1f))
+            MeasureItem(label = "Altura", value = height, modifier = Modifier.weight(1f))
         }
     }
 }
@@ -340,9 +390,8 @@ private fun MeasureItem(label: String, value: String, modifier: Modifier = Modif
     }
 }
 
-// 3b. Tarjeta "Red de Apoyo": médico de referencia y su teléfono.
 @Composable
-private fun SupportNetworkCard() {
+private fun SupportNetworkCard(doctorName: String, doctorPhone: String?) {
     val context = LocalContext.current
 
     BentoCard(title = "Red de Apoyo") {
@@ -364,40 +413,41 @@ private fun SupportNetworkCard() {
             Spacer(modifier = Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = DOCTOR_NAME,
+                    text = doctorName,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = CuidaTextPrimary
                 )
                 Text(
-                    text = DOCTOR_PHONE,
+                    text = doctorPhone ?: FALLBACK,
                     fontSize = 14.sp,
                     color = CuidaTextSecondary
                 )
             }
-            IconButton(
-                onClick = {
-                    val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$DOCTOR_PHONE"))
-                    context.startActivity(intent)
-                },
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(CuidaGreen)
-                    .semantics { contentDescription = "Llamar a $DOCTOR_NAME" }
-            ) {
-                Icon(
-                    imageVector = HugeIcons.Call,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(22.dp)
-                )
+            if (!doctorPhone.isNullOrBlank()) {
+                IconButton(
+                    onClick = {
+                        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$doctorPhone"))
+                        context.startActivity(intent)
+                    },
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(CuidaGreen)
+                        .semantics { contentDescription = "Llamar a $doctorName" }
+                ) {
+                    Icon(
+                        imageVector = HugeIcons.Call,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
         }
     }
 }
 
-// Botón principal "Ver mis contactos": abre la pantalla de contactos. Reutiliza
 @Composable
 private fun ContactsButton(onOpenContacts: () -> Unit) {
     Button(
@@ -426,7 +476,6 @@ private fun ContactsButton(onOpenContacts: () -> Unit) {
     }
 }
 
-// Contenedor reutilizable de tarjeta blanca con título (estilo bento box).
 @Composable
 private fun BentoCard(
     title: String,
@@ -452,3 +501,7 @@ private fun BentoCard(
         content()
     }
 }
+
+/** Formatea un número: entero si no tiene decimales, si no con un decimal. */
+private fun formatNumber(value: Float): String =
+    if (value % 1f == 0f) value.toInt().toString() else "%.1f".format(value)
