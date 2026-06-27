@@ -2,6 +2,7 @@ package com.example.cuidalink.ui
 
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
@@ -27,6 +28,8 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Event
@@ -872,45 +875,97 @@ fun AddEventDialog(initialDate: LocalDate, onDismiss: () -> Unit, onSave: (Event
 
 // Diálogo de detalle y edición de un evento: muestra el nombre y permite editar
 @Composable
-fun EventDetailsDialog(event: Event, date: LocalDate, onDismiss: () -> Unit, onDeleteDay: () -> Unit, onDeleteAll: () -> Unit) {
+fun EventDetailsDialog(
+    event: Event,
+    date: LocalDate,
+    onDismiss: () -> Unit,
+    onSave: (Event) -> Unit,
+    onDeleteDay: () -> Unit,
+    onDeleteAll: () -> Unit
+) {
+    var hasAlarm by remember { mutableStateOf(event.hasAlarm) }
+
     Dialog(onDismissRequest = onDismiss) {
-        Card(modifier = Modifier.fillMaxWidth().padding(16.dp), shape = RoundedCornerShape(16.dp)) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Event, null, tint = MaterialTheme.colorScheme.primary)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(event.name, style = MaterialTheme.typography.headlineSmall)
-                }
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    event.name,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = CuidaTextPrimary
+                )
+                
                 Spacer(modifier = Modifier.height(16.dp))
+                
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Schedule, null, Modifier.size(20.dp), tint = Color.Gray)
+                    Icon(Icons.Default.Schedule, null, Modifier.size(20.dp), tint = CuidaGreen)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("${event.time.format(DateTimeFormatter.ofPattern("HH:mm"))} - ${date.format(DateTimeFormatter.ofPattern("d MMMM yyyy", Locale("es", "ES")))}")
+                    Text(
+                        "${event.time.format(DateTimeFormatter.ofPattern("HH:mm"))} - ${date.format(DateTimeFormatter.ofPattern("d MMMM yyyy", spanishLocale))}",
+                        color = CuidaTextSecondary
+                    )
                 }
+                
                 if (!event.description.isNullOrBlank()) {
                     Spacer(modifier = Modifier.height(12.dp))
                     Row(verticalAlignment = Alignment.Top) {
                         Icon(Icons.Default.Notes, null, Modifier.size(20.dp), tint = Color.Gray)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(event.description, style = MaterialTheme.typography.bodyMedium)
+                        Text(event.description, fontSize = 16.sp, color = CuidaTextSecondary)
                     }
                 }
+
                 Spacer(modifier = Modifier.height(24.dp))
-                Divider()
+                
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Alarma activada", fontWeight = FontWeight.Bold, color = CuidaTextPrimary)
+                    Spacer(modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = hasAlarm,
+                        onCheckedChange = { hasAlarm = it },
+                        colors = appSwitchColors()
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+                HorizontalDivider()
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("Eliminar:", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.error)
-                TextButton(onClick = onDeleteDay, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                
+                Text("Eliminar:", fontWeight = FontWeight.Bold, color = Color.Red.copy(alpha = 0.7f))
+                TextButton(
+                    onClick = onDeleteDay,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color.Red)
+                ) {
                     Icon(Icons.Default.Delete, null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Solo este día")
                 }
-                TextButton(onClick = onDeleteAll, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                TextButton(
+                    onClick = onDeleteAll,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color.Red)
+                ) {
                     Icon(Icons.Default.Delete, null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Todas las alarmas con este nombre")
+                    Text("Todas las alarmas de '${event.name}'")
                 }
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    Button(onClick = onDismiss) { Text("Cerrar") }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = onDismiss) { Text("Cancelar") }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = { onSave(event.copy(hasAlarm = hasAlarm)) },
+                        colors = ButtonDefaults.buttonColors(containerColor = CuidaGreen)
+                    ) {
+                        Text("Guardar cambios")
+                    }
                 }
             }
         }
@@ -957,7 +1012,7 @@ fun WeekView(selectedDate: LocalDate, viewModel: CalendarViewModel, onEventClick
                     Text("${day.dayOfWeek.getDisplayName(TextStyle.FULL, Locale("es", "ES"))} ${day.dayOfMonth}", style = MaterialTheme.typography.labelLarge, color = if (day == LocalDate.now()) MaterialTheme.colorScheme.primary else Color.Gray)
                     if (dayEvents.isEmpty()) Text("Sin eventos", modifier = Modifier.padding(start = 16.dp, bottom = 8.dp), style = MaterialTheme.typography.bodySmall)
                     else dayEvents.forEach { EventItem(it, onClick = { onEventClick(it) }) }
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 }
             }
         }
@@ -1002,28 +1057,5 @@ fun MonthView(selectedDate: LocalDate, onDateSelected: (LocalDate) -> Unit, view
         val selectedDayEvents = viewModel.getEventsForDate(selectedDate)
         if (selectedDayEvents.isEmpty()) Text("No hay eventos", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
         else LazyColumn { items(selectedDayEvents) { EventItem(it, onClick = { onEventClick(it) }) } }
-    }
-}
-
-fun scheduleAlarms(context: Context, event: Event) {
-    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-    val intent = Intent(context, AlarmReceiver::class.java).apply { putExtra("EVENT_NAME", event.name) }
-
-    if (event.isRecurring) {
-        val intervalMillis = (event.recurrenceInterval ?: 1).toLong() * 24 * 60 * 60 * 1000
-        val calendar = Calendar.getInstance().apply {
-            val start = event.startDate ?: LocalDate.now()
-            set(start.year, start.monthValue - 1, start.dayOfMonth, event.time.hour, event.time.minute, 0)
-        }
-        val pendingIntent = PendingIntent.getBroadcast(context, event.id.hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        alarmManager.setRepeating(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, intervalMillis, pendingIntent)
-    } else {
-        event.dates.forEach { date ->
-            val calendar = Calendar.getInstance().apply { set(date.year, date.monthValue - 1, date.dayOfMonth, event.time.hour, event.time.minute, 0) }
-            if (calendar.after(Calendar.getInstance())) {
-                val pendingIntent = PendingIntent.getBroadcast(context, (event.id + date).hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
-            }
-        }
     }
 }
