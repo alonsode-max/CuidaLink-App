@@ -11,11 +11,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import com.example.cuidalink.viewmodel.AuthState
 import com.example.cuidalink.viewmodel.LoginViewModel
+import com.example.cuidalink.viewmodel.SessionViewModel
+import com.example.cuidalink.viewmodel.LoginState
 
 @Composable
-fun LoginScreen(viewModel: LoginViewModel) {
+fun LoginScreen(
+    viewModel: LoginViewModel,
+    sessionViewModel: SessionViewModel
+) {
     var isRegisterMode by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -31,8 +35,11 @@ fun LoginScreen(viewModel: LoginViewModel) {
     var weight by remember { mutableStateOf("") }
     var height by remember { mutableStateOf("") }
 
-    val authState by viewModel.authState.collectAsState()
+    val sessionLoginState by sessionViewModel.loginState.collectAsState()
     val scrollState = rememberScrollState()
+
+    val isLoading = sessionLoginState is LoginState.Loading
+    val errorMsg = (sessionLoginState as? LoginState.Error)?.message
 
     Column(
         modifier = Modifier
@@ -78,7 +85,7 @@ fun LoginScreen(viewModel: LoginViewModel) {
 
             OutlinedTextField(
                 value = name,
-                onValueChange = { name = it },
+                onValueChange = { name = it; sessionViewModel.consumeLogin() },
                 label = { Text("Nombre completo") },
                 modifier = Modifier.fillMaxWidth()
             )
@@ -87,7 +94,7 @@ fun LoginScreen(viewModel: LoginViewModel) {
 
         OutlinedTextField(
             value = email,
-            onValueChange = { email = it },
+            onValueChange = { email = it; sessionViewModel.consumeLogin() },
             label = { Text("Correo electrónico") },
             modifier = Modifier.fillMaxWidth()
         )
@@ -95,7 +102,7 @@ fun LoginScreen(viewModel: LoginViewModel) {
 
         OutlinedTextField(
             value = password,
-            onValueChange = { password = it },
+            onValueChange = { password = it; sessionViewModel.consumeLogin() },
             label = { Text("Contraseña") },
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth()
@@ -105,21 +112,21 @@ fun LoginScreen(viewModel: LoginViewModel) {
         if (isRegisterMode && isPatient) {
             OutlinedTextField(
                 value = age,
-                onValueChange = { age = it },
+                onValueChange = { age = it; sessionViewModel.consumeLogin() },
                 label = { Text("Edad") },
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
                 value = bloodGroup,
-                onValueChange = { bloodGroup = it },
+                onValueChange = { bloodGroup = it; sessionViewModel.consumeLogin() },
                 label = { Text("Grupo sanguíneo") },
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
                 value = allergies,
-                onValueChange = { allergies = it },
+                onValueChange = { allergies = it; sessionViewModel.consumeLogin() },
                 label = { Text("Alergias") },
                 modifier = Modifier.fillMaxWidth()
             )
@@ -127,14 +134,14 @@ fun LoginScreen(viewModel: LoginViewModel) {
             Row(modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
                     value = weight,
-                    onValueChange = { weight = it },
+                    onValueChange = { weight = it; sessionViewModel.consumeLogin() },
                     label = { Text("Peso (kg)") },
                     modifier = Modifier.weight(1f)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 OutlinedTextField(
                     value = height,
-                    onValueChange = { height = it },
+                    onValueChange = { height = it; sessionViewModel.consumeLogin() },
                     label = { Text("Altura (cm)") },
                     modifier = Modifier.weight(1f)
                 )
@@ -142,14 +149,14 @@ fun LoginScreen(viewModel: LoginViewModel) {
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        if (authState is AuthState.Loading) {
+        if (isLoading) {
             CircularProgressIndicator()
         } else {
             Button(
                 onClick = {
                     if (isRegisterMode) {
                         if (isPatient) {
-                            viewModel.signUpPatient(
+                            sessionViewModel.signUpPatient(
                                 email = email,
                                 pass = password,
                                 name = name,
@@ -160,10 +167,10 @@ fun LoginScreen(viewModel: LoginViewModel) {
                                 height = height.toFloatOrNull() ?: 0f
                             )
                         } else {
-                            viewModel.signUpCaretaker(email, password, name)
+                            sessionViewModel.signUpCaretaker(email, password, name)
                         }
                     } else {
-                        viewModel.login(email, password)
+                        sessionViewModel.login(email, password)
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
@@ -172,25 +179,20 @@ fun LoginScreen(viewModel: LoginViewModel) {
             }
             
             TextButton(
-                onClick = { isRegisterMode = !isRegisterMode },
+                onClick = { 
+                    isRegisterMode = !isRegisterMode 
+                    sessionViewModel.consumeLogin()
+                },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(if (isRegisterMode) "¿Ya tienes cuenta? Inicia sesión" else "¿No tienes cuenta? Regístrate")
             }
         }
 
-        if (authState is AuthState.Error) {
+        errorMsg?.let {
             Text(
-                text = (authState as AuthState.Error).message,
+                text = it,
                 color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-        }
-
-        if (authState is AuthState.Success) {
-            Text(
-                text = (authState as AuthState.Success).message,
-                color = Color(0xFF4CAF50),
                 modifier = Modifier.padding(top = 8.dp)
             )
         }

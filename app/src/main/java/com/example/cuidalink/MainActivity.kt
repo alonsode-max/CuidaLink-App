@@ -95,6 +95,7 @@ class MainActivity : ComponentActivity() {
             val context = LocalContext.current
             val loginViewModel: LoginViewModel = viewModel()
             val gameViewModel: GameViewModel = viewModel()
+            val sessionViewModel: SessionViewModel = viewModel()
             
             val permissionLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.RequestMultiplePermissions(),
@@ -108,19 +109,16 @@ class MainActivity : ComponentActivity() {
 
             LaunchedEffect(Unit) {
                 val permissionsToRequest = mutableListOf<String>()
-                
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                         permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
                     }
                 }
-
                 if (permissionsToRequest.isNotEmpty()) {
                     permissionLauncher.launch(permissionsToRequest.toTypedArray())
                 } else {
                     checkSpecialPermissions(context)
                 }
-                
                 loginViewModel.checkSession()
             }
 
@@ -130,11 +128,8 @@ class MainActivity : ComponentActivity() {
                 // Accesibilidad compartida: el ViewModel alimenta la apariencia global.
                 val accessibilityViewModel: AccessibilityViewModel = viewModel()
                 val accessibilityState by accessibilityViewModel.uiState.collectAsState()
-                // Sesión: el rol (paciente/cuidador) decide qué grafo se muestra.
-                val sessionViewModel: SessionViewModel = viewModel()
-                // Sesión guardada en disco: `null` mientras carga (splash), luego
+                
                 val session by sessionViewModel.uiState.collectAsState()
-                // El modo "SYSTEM" sigue el tema del dispositivo; los otros dos
                 val darkThemeActive = when (accessibilityState.themeMode) {
                     ThemeMode.DARK -> true
                     ThemeMode.LIGHT -> false
@@ -144,7 +139,6 @@ class MainActivity : ComponentActivity() {
                 val navController = rememberNavController()
                 val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
 
-                // La app arranca en el login. Tras autenticar, se navega al grafo
                 fun goToRoleGraph(role: UserRole) {
                     val target = if (role == UserRole.CUIDADOR) "caregiver_graph" else "patient_graph"
                     navController.navigate(target) {
@@ -160,10 +154,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // Pestañas principales de navegación.
                 val bottomBarRoutes = setOf("inicio", "entrenamiento", "calendario", "ajustes")
-
-                // Accesos repartidos a los lados del recorte del SOS. Perfil
                 val leftNavItems = listOf(
                     FloatingNavItem("inicio", "Inicio", HugeIcons.Home),
                     FloatingNavItem("calendario", "Calendario", HugeIcons.Calendar)
@@ -181,7 +172,6 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // Navbar del CUIDADOR (sin SOS): Inicio, Calendario, Zonas y Ajustes.
                 val caregiverBarRoutes = setOf("monitoreo", "cuidador_calendario", "zonas", "cuidador_ajustes")
                 val caregiverNavItems = listOf(
                     FloatingNavItem("monitoreo", "Inicio", HugeIcons.Home),
@@ -215,9 +205,7 @@ class MainActivity : ComponentActivity() {
                     if (loadedSession == null) {
                         // Carga inicial: leyendo la sesión guardada. Splash de marca
                         Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(backgroundBrush),
+                            modifier = Modifier.fillMaxSize().background(backgroundBrush),
                             contentAlignment = Alignment.Center
                         ) {
                             CircularProgressIndicator(color = CuidaGreen)
@@ -230,9 +218,7 @@ class MainActivity : ComponentActivity() {
                             "login"
                         }
                         Scaffold(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(backgroundBrush),
+                            modifier = Modifier.fillMaxSize().background(backgroundBrush),
                             containerColor = Color.Transparent,
                             floatingActionButton = {
                                 if (currentRoute in bottomBarRoutes) {
@@ -274,20 +260,29 @@ class MainActivity : ComponentActivity() {
                                 composable("login") {
                                     val loginState by sessionViewModel.loginState.collectAsState()
                                     LaunchedEffect(loginState) {
-                                        val current = loginState
-                                        if (current is LoginState.Success) {
-                                            goToRoleGraph(current.role)
+                                        if (loginState is LoginState.Success) {
+                                            goToRoleGraph((loginState as LoginState.Success).role)
                                             sessionViewModel.consumeLogin()
                                         }
                                     }
-                                    LoginScreen(viewModel = loginViewModel)
+                                    LoginScreen(
+                                        viewModel = loginViewModel,
+                                        sessionViewModel = sessionViewModel
+                                    )
                                 }
 
                                 // ----- Registro (alta de cuenta, fuera de los grafos) -----
                                 composable("registro") {
+                                    val loginState by sessionViewModel.loginState.collectAsState()
+                                    LaunchedEffect(loginState) {
+                                        if (loginState is LoginState.Success) {
+                                            goToRoleGraph((loginState as LoginState.Success).role)
+                                            sessionViewModel.consumeLogin()
+                                        }
+                                    }
                                     RegisterScreen(
                                         onBack = { navController.popBackStack() },
-                                        onRegistered = { navController.popBackStack() }
+                                        sessionViewModel = sessionViewModel
                                     )
                                 }
 
@@ -323,10 +318,7 @@ class MainActivity : ComponentActivity() {
                                         // Modo de auxilio automático "Ayuda en camino"
                                         EmergencyHelpScreen(
                                             onCall = {
-                                                val intent = Intent(
-                                                    Intent.ACTION_DIAL,
-                                                    Uri.parse("tel:$EMERGENCY_PHONE")
-                                                )
+                                                val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$EMERGENCY_PHONE"))
                                                 context.startActivity(intent)
                                             },
                                             onCancel = { navController.popBackStack() }
@@ -415,49 +407,6 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
-            }
-        }
-    }
-
-    @Composable
-    private fun MainContent(gameViewModel: GameViewModel, loginViewModel: LoginViewModel) {
-        var selectedTab by remember { mutableIntStateOf(0) }
-
-        Scaffold(
-            modifier = Modifier.fillMaxSize(),
-            bottomBar = {
-                NavigationBar {
-                    NavigationBarItem(
-                        icon = { Icon(Icons.Default.Games, contentDescription = null) },
-                        label = { Text("Juego") },
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 }
-                    )
-                    NavigationBarItem(
-                        icon = { Icon(Icons.Default.CalendarMonth, contentDescription = null) },
-                        label = { Text("Calendario") },
-                        selected = selectedTab == 1,
-                        onClick = { selectedTab = 1 }
-                    )
-                    NavigationBarItem(
-                        icon = { Icon(Icons.Default.ContactPage, contentDescription = null) },
-                        label = { Text("Contactos") },
-                        selected = selectedTab == 2,
-                        onClick = { selectedTab = 2 }
-                    )
-                    NavigationBarItem(
-                        icon = { Icon(Icons.Default.Logout, contentDescription = null) },
-                        label = { Text("Cerrar sesión") },
-                        selected = false,
-                        onClick = { loginViewModel.logout() }
-                    )
-                }
-            }
-        ) { innerPadding ->
-            when (selectedTab) {
-                0 -> GameScreen(Modifier.padding(innerPadding), gameViewModel)
-                1 -> CalendarScreen(Modifier.padding(innerPadding))
-                2 -> ContactsScreen(Modifier.padding(innerPadding), gameViewModel)
             }
         }
     }

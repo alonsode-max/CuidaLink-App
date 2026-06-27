@@ -36,7 +36,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,26 +57,23 @@ import com.example.cuidalink.ui.theme.CuidaGreenSurface
 import com.example.cuidalink.ui.theme.CuidaRed
 import com.example.cuidalink.ui.theme.CuidaTextPrimary
 import com.example.cuidalink.ui.theme.CuidaTextSecondary
-import com.example.cuidalink.viewmodel.RegisterSubmissionState
 import com.example.cuidalink.viewmodel.RegisterViewModel
 import com.example.cuidalink.viewmodel.UserRole
+import com.example.cuidalink.viewmodel.SessionViewModel
+import com.example.cuidalink.viewmodel.LoginState
 
 /** Pantalla de registro: elige rol y pide solo los campos obligatorios. */
 @Composable
 fun RegisterScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
-    onRegistered: () -> Unit = {},
+    sessionViewModel: SessionViewModel,
     viewModel: RegisterViewModel = viewModel()
 ) {
     val form by viewModel.form.collectAsState()
-    val submission by viewModel.submission.collectAsState()
-    val isLoading = submission is RegisterSubmissionState.Loading
+    val loginState by sessionViewModel.loginState.collectAsState()
+    val isLoading = loginState is LoginState.Loading
     var passwordVisible by remember { mutableStateOf(false) }
-
-    LaunchedEffect(submission) {
-        if (submission is RegisterSubmissionState.Success) onRegistered()
-    }
 
     Column(
         modifier = modifier
@@ -108,13 +104,13 @@ fun RegisterScreen(
                 selected = form.role,
                 onSelect = {
                     viewModel.onRoleChange(it)
-                    viewModel.resetSubmission()
+                    sessionViewModel.consumeLogin()
                 }
             )
 
             OutlinedTextField(
                 value = form.name,
-                onValueChange = { viewModel.onNameChange(it); viewModel.resetSubmission() },
+                onValueChange = { viewModel.onNameChange(it); sessionViewModel.consumeLogin() },
                 label = { Text("Nombre") },
                 singleLine = true,
                 leadingIcon = { Icon(imageVector = Icons.Filled.Badge, contentDescription = null) },
@@ -125,7 +121,7 @@ fun RegisterScreen(
 
             OutlinedTextField(
                 value = form.email,
-                onValueChange = { viewModel.onEmailChange(it); viewModel.resetSubmission() },
+                onValueChange = { viewModel.onEmailChange(it); sessionViewModel.consumeLogin() },
                 label = { Text("Correo") },
                 singleLine = true,
                 leadingIcon = { Icon(imageVector = Icons.Filled.Mail, contentDescription = null) },
@@ -138,7 +134,7 @@ fun RegisterScreen(
             if (form.role == UserRole.PACIENTE) {
                 OutlinedTextField(
                     value = form.age,
-                    onValueChange = { viewModel.onAgeChange(it); viewModel.resetSubmission() },
+                    onValueChange = { viewModel.onAgeChange(it); sessionViewModel.consumeLogin() },
                     label = { Text("Edad") },
                     singleLine = true,
                     leadingIcon = { Icon(imageVector = Icons.Filled.Cake, contentDescription = null) },
@@ -151,7 +147,7 @@ fun RegisterScreen(
 
             OutlinedTextField(
                 value = form.password,
-                onValueChange = { viewModel.onPasswordChange(it); viewModel.resetSubmission() },
+                onValueChange = { viewModel.onPasswordChange(it); sessionViewModel.consumeLogin() },
                 label = { Text("Contraseña") },
                 singleLine = true,
                 leadingIcon = { Icon(imageVector = Icons.Filled.Lock, contentDescription = null) },
@@ -170,10 +166,9 @@ fun RegisterScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            val errorState = submission as? RegisterSubmissionState.Error
-            if (errorState != null) {
+            if (loginState is LoginState.Error) {
                 Text(
-                    text = errorState.message,
+                    text = (loginState as LoginState.Error).message,
                     color = CuidaRed,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold
@@ -181,7 +176,19 @@ fun RegisterScreen(
             }
 
             Button(
-                onClick = { viewModel.register() },
+                onClick = {
+                    if (form.role == UserRole.PACIENTE) {
+                        sessionViewModel.signUpPatient(
+                            email = form.email,
+                            pass = form.password,
+                            name = form.name,
+                            age = form.age.toIntOrNull() ?: 0,
+                            bloodGroup = "", allergies = "", weight = 0f, height = 0f
+                        )
+                    } else {
+                        sessionViewModel.signUpCaretaker(form.email, form.password, form.name)
+                    }
+                },
                 enabled = !isLoading && viewModel.isFormValid(form),
                 modifier = Modifier
                     .fillMaxWidth()

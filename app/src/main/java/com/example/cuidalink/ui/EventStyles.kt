@@ -10,13 +10,24 @@ import com.example.cuidalink.ui.theme.CuidaGreenSurface
 import com.example.cuidalink.ui.theme.CuidaGreenSurfaceHover
 import com.example.cuidalink.ui.theme.CuidaHeaderTeal
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 import kotlin.math.abs
 
 internal val spanishLocale = Locale("es", "ES")
 
 internal fun Event.occursOn(date: LocalDate): Boolean {
-    return if (isRecurring) recurringDays.contains(date.dayOfWeek.value) else dates.contains(date)
+    return if (isRecurring) {
+        val start = startDate ?: return false
+        if (date.isBefore(start)) return false
+        if (hasPeriod && endDate != null && date.isAfter(endDate)) return false
+        
+        val interval = recurrenceInterval ?: 1
+        val daysBetween = ChronoUnit.DAYS.between(start, date)
+        daysBetween % interval == 0L
+    } else {
+        dates.contains(date)
+    }
 }
 
 // Palabras clave que identifican un evento de medicacion.
