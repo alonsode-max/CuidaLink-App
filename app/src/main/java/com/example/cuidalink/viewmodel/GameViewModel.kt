@@ -28,7 +28,10 @@ class GameViewModel : ViewModel() {
         val isGameOver: Boolean = false,
         val isLoading: Boolean = false,
         val message: String? = null,
-        val allContacts: List<Contact> = emptyList()
+        val allContacts: List<Contact> = emptyList(),
+        // Progreso para la barra "X de Y" del nuevo diseño
+        val currentQuestionNumber: Int = 0,
+        val totalQuestions: Int = 0
     )
 
     private val _gameState = MutableStateFlow(GameUiState(isLoading = true))
@@ -90,7 +93,9 @@ class GameViewModel : ViewModel() {
                     isLoading = false, 
                     score = 0, 
                     isGameOver = false,
-                    allContacts = syncedContacts.sortedBy { it.name }
+                    allContacts = syncedContacts.sortedBy { it.name },
+                    currentQuestionNumber = 0,
+                    totalQuestions = shuffledWithPhoto.size
                 )
                 nextQuestion()
             } catch (e: Exception) {
@@ -158,7 +163,8 @@ class GameViewModel : ViewModel() {
             _gameState.value = _gameState.value.copy(
                 currentContact = nextContact,
                 options = options,
-                isLoading = false
+                isLoading = false,
+                currentQuestionNumber = _gameState.value.currentQuestionNumber + 1
             )
         } else {
             val gameOverMsg = if (_gameState.value.score > 0) "¡Has terminado! Buen trabajo." else "No tienes contactos con foto para jugar."

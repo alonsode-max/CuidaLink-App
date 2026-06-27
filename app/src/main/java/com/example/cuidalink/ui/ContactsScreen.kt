@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.*
@@ -19,22 +21,37 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.example.cuidalink.ui.theme.keepOriginalColorsInDark
 import com.example.cuidalink.viewmodel.GameViewModel
 
 @Composable
 fun ContactsScreen(
     modifier: Modifier = Modifier,
-    viewModel: GameViewModel
+    viewModel: GameViewModel,
+    onBack: () -> Unit = {}
 ) {
     val state by viewModel.gameState.collectAsState()
     val context = LocalContext.current
 
     Column(modifier = modifier.fillMaxSize()) {
-        Text(
-            text = "Mis Contactos",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(16.dp)
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 4.dp, end = 16.dp, top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Volver atrás"
+                )
+            }
+            Text(
+                text = "Mis Contactos",
+                style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.padding(start = 4.dp)
+            )
+        }
 
         if (state.isLoading) {
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
@@ -72,6 +89,7 @@ fun ContactItem(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
@@ -86,7 +104,8 @@ fun ContactItem(
                     contentDescription = null,
                     modifier = Modifier
                         .size(60.dp)
-                        .clip(CircleShape),
+                        .clip(CircleShape)
+                        .keepOriginalColorsInDark(),
                     contentScale = ContentScale.Crop
                 )
             } else {

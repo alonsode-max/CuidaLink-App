@@ -13,5 +13,7 @@
 .externalNativeBuild
 .cxx
 local.properties
+.claude/
+/INTEGRACION.md
 /.idea/deviceManager.xml
 /.idea/inspectionProfiles/Project_Default.xml
