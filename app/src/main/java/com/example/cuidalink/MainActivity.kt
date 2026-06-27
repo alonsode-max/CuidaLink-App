@@ -8,7 +8,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -41,7 +40,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navigation
-import com.example.cuidalink.network.SupabaseConfig
 import com.example.cuidalink.ui.AccessibilityScreen
 import com.example.cuidalink.ui.CalendarScreen
 import com.example.cuidalink.ui.ThemeScreen
@@ -79,10 +77,7 @@ import com.example.cuidalink.viewmodel.GameViewModel
 import com.example.cuidalink.viewmodel.LoginState
 import com.example.cuidalink.viewmodel.SessionViewModel
 import com.example.cuidalink.viewmodel.UserRole
-import io.github.jan.supabase.auth.auth
-import com.example.cuidalink.ui.theme.CuidaLinkTheme
 import com.example.cuidalink.viewmodel.AuthState
-import com.example.cuidalink.viewmodel.GameViewModel
 import com.example.cuidalink.viewmodel.LoginViewModel
 
 class MainActivity : ComponentActivity() {
@@ -100,7 +95,6 @@ class MainActivity : ComponentActivity() {
             val context = LocalContext.current
             val loginViewModel: LoginViewModel = viewModel()
             val gameViewModel: GameViewModel = viewModel()
-            val authState by loginViewModel.authState.collectAsState()
             
             val permissionLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.RequestMultiplePermissions(),
@@ -120,7 +114,6 @@ class MainActivity : ComponentActivity() {
                         permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
                     }
                 }
-                // USE_FULL_SCREEN_INTENT no es permiso de runtime; va declarado en el manifest.
 
                 if (permissionsToRequest.isNotEmpty()) {
                     permissionLauncher.launch(permissionsToRequest.toTypedArray())
@@ -133,7 +126,6 @@ class MainActivity : ComponentActivity() {
 
             CuidaLinkTheme {
                 // ViewModels a nivel de actividad para que su estado se comparta
-                val gameViewModel: GameViewModel = viewModel()
                 val calendarViewModel: CalendarViewModel = viewModel()
                 // Accesibilidad compartida: el ViewModel alimenta la apariencia global.
                 val accessibilityViewModel: AccessibilityViewModel = viewModel()
@@ -219,216 +211,209 @@ class MainActivity : ComponentActivity() {
                     highContrast = accessibilityState.isHighContrastEnabled,
                     textScale = accessibilityState.textSizeMultiplier
                 ) {
-                val loadedSession = session
-                if (loadedSession == null) {
-                    // Carga inicial: leyendo la sesión guardada. Splash de marca
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(backgroundBrush),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(color = CuidaGreen)
-                    }
-                } else {
-                // Grafo inicial según la sesión guardada: si ya hay login, va
-                val startGraph = if (loadedSession.isLoggedIn) {
-                    if (loadedSession.role == UserRole.CUIDADOR) "caregiver_graph" else "patient_graph"
-                } else {
-                    "login"
-                }
-                Scaffold(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(backgroundBrush),
-                    containerColor = Color.Transparent,
-                    floatingActionButton = {
-                        if (currentRoute in bottomBarRoutes) {
-                            // SOS centrado y bajado para sobresalir en la barra.
-                            SosFab(
-                                // Al activar el SOS se abre el modo de auxilio
-                                onClick = { navController.navigate("auxilio") },
-                                modifier = Modifier.offset(y = FAB_DOCK_OFFSET)
-                            )
+                    val loadedSession = session
+                    if (loadedSession == null) {
+                        // Carga inicial: leyendo la sesión guardada. Splash de marca
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(backgroundBrush),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = CuidaGreen)
                         }
-                    },
-                    floatingActionButtonPosition = FabPosition.Center,
-                    bottomBar = {
-                        if (currentRoute in bottomBarRoutes) {
-                            // Barra blanca con recorte central para el SOS (paciente).
-                            SosBottomBar(
-                                leftItems = leftNavItems,
-                                rightItems = rightNavItems,
-                                currentRoute = currentRoute,
-                                onNavigate = { route -> navigateToTab(route) }
-                            )
-                        } else if (currentRoute in caregiverBarRoutes) {
-                            // Misma píldora flotante pero sin SOS (cuidador).
-                            CaregiverBottomBar(
-                                items = caregiverNavItems,
-                                currentRoute = currentRoute,
-                                onNavigate = { route -> navigateCaregiverTab(route) }
-                            )
+                    } else {
+                        // Grafo inicial según la sesión guardada: si ya hay login, va
+                        val startGraph = if (loadedSession.isLoggedIn) {
+                            if (loadedSession.role == UserRole.CUIDADOR) "caregiver_graph" else "patient_graph"
+                        } else {
+                            "login"
                         }
-                    }
-                ) { innerPadding ->
-                    NavHost(
-                        navController = navController,
-                        startDestination = startGraph,
-                        // Solo respetamos el inset superior: el contenido se
-                        modifier = Modifier.padding(top = innerPadding.calculateTopPadding())
-                    ) {
-                      // ----- Login (entrada de la app, fuera de los grafos) -----
-                      composable("login") {
-                          val loginState by sessionViewModel.loginState.collectAsState()
-                          LaunchedEffect(loginState) {
-                              val current = loginState
-                              if (current is LoginState.Success) {
-                                  goToRoleGraph(current.role)
-                                  sessionViewModel.consumeLogin()
-                              }
-                          }
-                          LoginScreen(
-                              onLogin = { email, password -> sessionViewModel.login(email, password) },
-                              isLoading = loginState is LoginState.Loading,
-                              errorMessage = (loginState as? LoginState.Error)?.message,
-                              onNavigateToRegister = { navController.navigate("registro") }
-                          )
-                      }
-
-                      // ----- Registro (alta de cuenta, fuera de los grafos) -----
-                      composable("registro") {
-                          RegisterScreen(
-                              onBack = { navController.popBackStack() },
-                              onRegistered = { navController.popBackStack() }
-                          )
-                      }
-
-                      // ----- Grafo del PACIENTE (experiencia simple + SOS) -----
-                      navigation(startDestination = "inicio", route = "patient_graph") {
-                        composable("inicio") {
-                            DashboardScreen(
-                                calendarViewModel = calendarViewModel,
-                                onOpenCalendar = { navigateToTab("calendario") },
-                                onPlay = { navigateToTab("entrenamiento") }
-                            )
-                        }
-                        composable("entrenamiento") {
-                            CognitiveCenterScreen(
-                                onPlayGame = { navController.navigate("juego") },
-                                onPlayEmojiPairs = { navController.navigate("juegoParejas") }
-                            )
-                        }
-                        composable("juego") {
-                            // Pantalla de juego a foco completo (sin barra),
-                            GameScreen(
-                                viewModel = gameViewModel,
-                                onBack = { navController.popBackStack() }
-                            )
-                        }
-                        composable("juegoParejas") {
-                            // Juego de memoria local (Parejas de Emojis).
-                            EmojiPairsGameScreen(
-                                onBack = { navController.popBackStack() }
-                            )
-                        }
-                        composable("auxilio") {
-                            // Modo de auxilio automático "Ayuda en camino"
-                            EmergencyHelpScreen(
-                                onCall = {
-                                    val intent = Intent(
-                                        Intent.ACTION_DIAL,
-                                        Uri.parse("tel:$EMERGENCY_PHONE")
+                        Scaffold(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(backgroundBrush),
+                            containerColor = Color.Transparent,
+                            floatingActionButton = {
+                                if (currentRoute in bottomBarRoutes) {
+                                    // SOS centrado y bajado para sobresalir en la barra.
+                                    SosFab(
+                                        // Al activar el SOS se abre el modo de auxilio
+                                        onClick = { navController.navigate("auxilio") },
+                                        modifier = Modifier.offset(y = FAB_DOCK_OFFSET)
                                     )
-                                    context.startActivity(intent)
-                                },
-                                onCancel = { navController.popBackStack() }
-                            )
-                        }
-                        composable("calendario") {
-                            CalendarScreen(viewModel = calendarViewModel)
-                        }
-                        composable("ajustes") {
-                            // Pantalla de Ajustes (antes "Perfil" en la barra).
-                            SettingsScreen(
-                                onBack = { navController.popBackStack() },
-                                onOpenProfile = { navController.navigate("perfil") },
-                                onOpenAccessibility = { navController.navigate("accesibilidad") },
-                                onOpenTheme = { navController.navigate("tema") },
-                                onLogout = { logout() }
-                            )
-                        }
-                        composable("tema") {
-                            // Selector de tema (claro / oscuro / sistema).
-                            ThemeScreen(
-                                themeMode = accessibilityState.themeMode,
-                                onSelectMode = { accessibilityViewModel.setThemeMode(it) },
-                                onBack = { navController.popBackStack() }
-                            )
-                        }
-                        composable("accesibilidad") {
-                            // Ajustes de accesibilidad (DataStore + ViewModel).
-                            AccessibilityScreen(
-                                viewModel = accessibilityViewModel,
-                                onBack = { navController.popBackStack() }
-                            )
-                        }
-                        composable("perfil") {
-                            ProfileScreen(
-                                onBack = { navController.popBackStack() },
-                                onOpenContacts = { navController.navigate("contactos") }
-                            )
-                        }
-                        composable("contactos") {
-                            ContactsScreen(
-                                viewModel = gameViewModel,
-                                onBack = { navController.popBackStack() }
-                            )
-                        }
-                      } // fin patient_graph
+                                }
+                            },
+                            floatingActionButtonPosition = FabPosition.Center,
+                            bottomBar = {
+                                if (currentRoute in bottomBarRoutes) {
+                                    // Barra blanca con recorte central para el SOS (paciente).
+                                    SosBottomBar(
+                                        leftItems = leftNavItems,
+                                        rightItems = rightNavItems,
+                                        currentRoute = currentRoute,
+                                        onNavigate = { route -> navigateToTab(route) }
+                                    )
+                                } else if (currentRoute in caregiverBarRoutes) {
+                                    // Misma píldora flotante pero sin SOS (cuidador).
+                                    CaregiverBottomBar(
+                                        items = caregiverNavItems,
+                                        currentRoute = currentRoute,
+                                        onNavigate = { route -> navigateCaregiverTab(route) }
+                                    )
+                                }
+                            }
+                        ) { innerPadding ->
+                            NavHost(
+                                navController = navController,
+                                startDestination = startGraph,
+                                // Solo respetamos el inset superior: el contenido se
+                                modifier = Modifier.padding(top = innerPadding.calculateTopPadding())
+                            ) {
+                                // ----- Login (entrada de la app, fuera de los grafos) -----
+                                composable("login") {
+                                    val loginState by sessionViewModel.loginState.collectAsState()
+                                    LaunchedEffect(loginState) {
+                                        val current = loginState
+                                        if (current is LoginState.Success) {
+                                            goToRoleGraph(current.role)
+                                            sessionViewModel.consumeLogin()
+                                        }
+                                    }
+                                    LoginScreen(viewModel = loginViewModel)
+                                }
 
-                      // ----- Grafo del CUIDADOR (panel de monitoreo) -----
-                      navigation(startDestination = "monitoreo", route = "caregiver_graph") {
-                        composable("monitoreo") {
-                            CaregiverDashboardScreen(
-                                onOpenHistory = { navController.navigate("cuidador_historial") },
-                                onOpenProfile = { navController.navigate("cuidador_perfil") }
-                            )
+                                // ----- Registro (alta de cuenta, fuera de los grafos) -----
+                                composable("registro") {
+                                    RegisterScreen(
+                                        onBack = { navController.popBackStack() },
+                                        onRegistered = { navController.popBackStack() }
+                                    )
+                                }
+
+                                // ----- Grafo del PACIENTE (experiencia simple + SOS) -----
+                                navigation(startDestination = "inicio", route = "patient_graph") {
+                                    composable("inicio") {
+                                        DashboardScreen(
+                                            calendarViewModel = calendarViewModel,
+                                            onOpenCalendar = { navigateToTab("calendario") },
+                                            onPlay = { navigateToTab("entrenamiento") }
+                                        )
+                                    }
+                                    composable("entrenamiento") {
+                                        CognitiveCenterScreen(
+                                            onPlayGame = { navController.navigate("juego") },
+                                            onPlayEmojiPairs = { navController.navigate("juegoParejas") }
+                                        )
+                                    }
+                                    composable("juego") {
+                                        // Pantalla de juego a foco completo (sin barra),
+                                        GameScreen(
+                                            viewModel = gameViewModel,
+                                            onBack = { navController.popBackStack() }
+                                        )
+                                    }
+                                    composable("juegoParejas") {
+                                        // Juego de memoria local (Parejas de Emojis).
+                                        EmojiPairsGameScreen(
+                                            onBack = { navController.popBackStack() }
+                                        )
+                                    }
+                                    composable("auxilio") {
+                                        // Modo de auxilio automático "Ayuda en camino"
+                                        EmergencyHelpScreen(
+                                            onCall = {
+                                                val intent = Intent(
+                                                    Intent.ACTION_DIAL,
+                                                    Uri.parse("tel:$EMERGENCY_PHONE")
+                                                )
+                                                context.startActivity(intent)
+                                            },
+                                            onCancel = { navController.popBackStack() }
+                                        )
+                                    }
+                                    composable("calendario") {
+                                        CalendarScreen(viewModel = calendarViewModel)
+                                    }
+                                    composable("ajustes") {
+                                        // Pantalla de Ajustes (antes "Perfil" en la barra).
+                                        SettingsScreen(
+                                            onBack = { navController.popBackStack() },
+                                            onOpenProfile = { navController.navigate("perfil") },
+                                            onOpenAccessibility = { navController.navigate("accesibilidad") },
+                                            onOpenTheme = { navController.navigate("tema") },
+                                            onLogout = { logout() }
+                                        )
+                                    }
+                                    composable("tema") {
+                                        // Selector de tema (claro / oscuro / sistema).
+                                        ThemeScreen(
+                                            themeMode = accessibilityState.themeMode,
+                                            onSelectMode = { accessibilityViewModel.setThemeMode(it) },
+                                            onBack = { navController.popBackStack() }
+                                        )
+                                    }
+                                    composable("accesibilidad") {
+                                        // Ajustes de accesibilidad (DataStore + ViewModel).
+                                        AccessibilityScreen(
+                                            viewModel = accessibilityViewModel,
+                                            onBack = { navController.popBackStack() }
+                                        )
+                                    }
+                                    composable("perfil") {
+                                        ProfileScreen(
+                                            onBack = { navController.popBackStack() },
+                                            onOpenContacts = { navController.navigate("contactos") }
+                                        )
+                                    }
+                                    composable("contactos") {
+                                        ContactsScreen(
+                                            viewModel = gameViewModel,
+                                            onBack = { navController.popBackStack() }
+                                        )
+                                    }
+                                } // fin patient_graph
+
+                                // ----- Grafo del CUIDADOR (panel de monitoreo) -----
+                                navigation(startDestination = "monitoreo", route = "caregiver_graph") {
+                                    composable("monitoreo") {
+                                        CaregiverDashboardScreen(
+                                            onOpenHistory = { navController.navigate("cuidador_historial") },
+                                            onOpenProfile = { navController.navigate("cuidador_perfil") }
+                                        )
+                                    }
+                                    composable("cuidador_calendario") {
+                                        // Mismo calendario que el paciente (datos compartidos).
+                                        CalendarScreen(viewModel = calendarViewModel)
+                                    }
+                                    composable("zonas") {
+                                        CaregiverSafeZoneScreen(
+                                            onBack = { navigateCaregiverTab("monitoreo") }
+                                        )
+                                    }
+                                    composable("cuidador_ajustes") {
+                                        // Reutiliza la pantalla de ajustes; el logout vive aquí.
+                                        SettingsScreen(
+                                            onBack = { navigateCaregiverTab("monitoreo") },
+                                            onOpenProfile = { navController.navigate("cuidador_mi_perfil") },
+                                            onOpenAccessibility = { navController.navigate("accesibilidad") },
+                                            onOpenTheme = { navController.navigate("tema") },
+                                            onLogout = { logout() }
+                                        )
+                                    }
+                                    composable("cuidador_historial") {
+                                        CaregiverHistoryScreen(onBack = { navController.popBackStack() })
+                                    }
+                                    composable("cuidador_perfil") {
+                                        CaregiverPatientProfileScreen(onBack = { navController.popBackStack() })
+                                    }
+                                    composable("cuidador_mi_perfil") {
+                                        CaregiverProfileScreen(onBack = { navController.popBackStack() })
+                                    }
+                                } // fin caregiver_graph
+                            }
                         }
-                        composable("cuidador_calendario") {
-                            // Mismo calendario que el paciente (datos compartidos).
-                            CalendarScreen(viewModel = calendarViewModel)
-                        }
-                        composable("zonas") {
-                            CaregiverSafeZoneScreen(
-                                onBack = { navigateCaregiverTab("monitoreo") }
-                            )
-                        }
-                        composable("cuidador_ajustes") {
-                            // Reutiliza la pantalla de ajustes; el logout vive aquí.
-                            SettingsScreen(
-                                onBack = { navigateCaregiverTab("monitoreo") },
-                                onOpenProfile = { navController.navigate("cuidador_mi_perfil") },
-                                onOpenAccessibility = { navController.navigate("accesibilidad") },
-                                onOpenTheme = { navController.navigate("tema") },
-                                onLogout = { logout() }
-                            )
-                        }
-                        composable("cuidador_historial") {
-                            CaregiverHistoryScreen(onBack = { navController.popBackStack() })
-                        }
-                        composable("cuidador_perfil") {
-                            CaregiverPatientProfileScreen(onBack = { navController.popBackStack() })
-                        }
-                        composable("cuidador_mi_perfil") {
-                            CaregiverProfileScreen(onBack = { navController.popBackStack() })
-                        }
-                      } // fin caregiver_graph
                     }
-                if (authState is AuthState.Authenticated) {
-                    MainContent(gameViewModel, loginViewModel)
-                } else {
-                    LoginScreen(loginViewModel)
                 }
             }
         }
@@ -466,8 +451,6 @@ class MainActivity : ComponentActivity() {
                         selected = false,
                         onClick = { loginViewModel.logout() }
                     )
-                }
-                } // fin rama "sesión cargada"
                 }
             }
         ) { innerPadding ->
