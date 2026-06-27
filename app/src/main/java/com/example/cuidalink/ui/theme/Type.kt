@@ -17,7 +17,6 @@ private fun variableWeight(resId: Int, axisWeight: Int, fontWeight: FontWeight) 
 )
 
 // Urbanist (fuente variable, OFL) empaquetada en res/font.
-// Es la fuente principal de toda la aplicación.
 val Urbanist = FontFamily(
     variableWeight(R.font.urbanist, 400, FontWeight.Normal),
     variableWeight(R.font.urbanist, 500, FontWeight.Medium),
@@ -28,7 +27,6 @@ val Urbanist = FontFamily(
 )
 
 // Mantenemos las antiguas por compatibilidad mientras se migra el código,
-// aunque idealmente se debería usar Urbanist en todas partes.
 val LexendDeca = Urbanist
 val Nunito = Urbanist
 

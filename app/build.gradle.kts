@@ -49,7 +49,11 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.coil.compose)
     implementation(libs.androidx.navigation.compose)
-    
+    implementation(libs.androidx.datastore.preferences)
+
+    // Mapas con OpenStreetMap (osmdroid): gratis y sin API key.
+    implementation(libs.osmdroid.android)
+
     // Supabase
     implementation(platform(libs.supabase.bom))
     implementation(libs.supabase.storage)

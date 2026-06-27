@@ -36,13 +36,9 @@ import androidx.compose.ui.unit.sp
 import com.example.cuidalink.ui.theme.*
 import kotlinx.coroutines.delay
 
-// Juego de memoria "Parejas de Emojis": el paciente destapa cartas de a dos y
-// busca las que tienen el mismo emoji. Es un juego local autocontenido (no
-// necesita red ni contactos), pensado para ser muy simple para mayores: pocas
-// parejas, cartas grandes y mensajes claros.
+// Juego "Parejas de Emojis": destapar cartas de a dos para emparejar.
 
 // Emojis del juego. Se eligieron caras de animales amigables, bien diferenciadas
-// entre sí para que sea fácil distinguirlas. Cada uno aparece dos veces.
 private val EMOJI_DECK = listOf("🐶", "🐱", "🦊", "🐻", "🐰", "🦁")
 
 private const val GRID_COLUMNS = 3
@@ -55,8 +51,7 @@ private data class EmojiCard(
     val isMatched: Boolean = false
 )
 
-// Crea un tablero nuevo: cada emoji duplicado y barajado, con un id estable por
-// posición para identificar cada carta de forma única.
+// Crea un tablero nuevo: emojis duplicados y barajados con id estable.
 private fun createBoard(): List<EmojiCard> =
     (EMOJI_DECK + EMOJI_DECK)
         .shuffled()
@@ -78,7 +73,6 @@ fun EmojiPairsGameScreen(
     val isComplete = matchedPairs == totalPairs
 
     // Resuelve la pareja cuando hay dos cartas destapadas: si coinciden quedan
-    // emparejadas; si no, se vuelven a tapar tras una breve pausa.
     val flippedIds = flippedUnmatched.map { it.id }
     LaunchedEffect(flippedIds) {
         if (flippedUnmatched.size == 2) {
@@ -116,7 +110,6 @@ fun EmojiPairsGameScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 22.dp)
                 // Aire inferior generoso para que el contenido baje y no quede
-                // pegado al borde de la pantalla.
                 .padding(bottom = 48.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -172,7 +165,6 @@ fun EmojiPairsGameScreen(
 }
 
 // Barra superior: solo el botón de volver. El título va aparte como encabezado
-// a todo el ancho para que pueda ser grande sin comprimirse.
 @Composable
 private fun GameTopBar(onBack: () -> Unit) {
     Row(
@@ -281,7 +273,9 @@ private fun EmojiCardView(
     ) {
         Text(
             text = if (isRevealed) card.emoji else "❓",
-            fontSize = 40.sp
+            fontSize = 40.sp,
+            // El emoji se ve con su color normal también en modo oscuro.
+            modifier = Modifier.keepOriginalColorsInDark()
         )
     }
 }

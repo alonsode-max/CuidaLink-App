@@ -21,6 +21,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.Accessibility
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Edit
@@ -46,23 +48,19 @@ import androidx.compose.ui.unit.sp
 import com.example.cuidalink.ui.theme.*
 
 // Pantalla de Ajustes (accesible desde la pestaña "Ajustes" de la barra, antes
-// "Perfil"). Sigue el diseño aportado por el usuario: cabecera navy con avatar,
-// nombre y correo, y la configuración agrupada en secciones de tarjetas claras.
-// La sección "Cuenta" lleva a la ficha detallada del paciente (ProfileScreen).
 
 private const val SETTINGS_NAME = "Carmen Delgado"
 private const val SETTINGS_INITIALS = "CD"
 
-/**
- * @param onBack vuelve a la pestaña anterior.
- * @param onOpenProfile abre la ficha de "Información personal" (ProfileScreen).
- * @param onEdit acción del lápiz de la cabecera (de momento sin destino).
- */
+/** Pantalla de Configuracion: perfil, accesibilidad, tema y sesion. */
 @Composable
 fun SettingsScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
+    onOpenAccessibility: () -> Unit = {},
+    onOpenTheme: () -> Unit = {},
+    onLogout: () -> Unit = {},
     onEdit: () -> Unit = {}
 ) {
     Column(
@@ -73,7 +71,6 @@ fun SettingsScreen(
         SettingsHeader(onBack = onBack, onEdit = onEdit)
 
         // Panel claro que se solapa hacia arriba sobre la cabecera navy (mismo
-        // patrón de superposición que el resto de pantallas).
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -83,7 +80,6 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 22.dp)
                 // Margen inferior amplio para que la barra flotante de navegación
-                // no tape la última fila de ajustes.
                 .padding(top = 18.dp, bottom = 120.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
@@ -97,26 +93,48 @@ fun SettingsScreen(
             )
 
             SettingsSectionTitle(title = "Ajustes")
+            SettingsRow(
+                icon = Icons.Filled.Accessibility,
+                label = "Accesibilidad",
+                onClick = onOpenAccessibility
+            )
             SettingsRow(icon = Icons.Filled.Language, label = "Idioma")
-            SettingsRow(icon = Icons.Filled.DarkMode, label = "Tema oscuro")
+            SettingsRow(
+                icon = Icons.Filled.DarkMode,
+                label = "Tema",
+                onClick = onOpenTheme
+            )
 
             SettingsSectionTitle(title = "Soporte")
             SettingsRow(icon = Icons.Filled.Info, label = "Centro de ayuda")
+
+            SettingsSectionTitle(title = "Sesión")
+            SettingsRow(
+                icon = Icons.AutoMirrored.Filled.Logout,
+                label = "Cerrar sesión",
+                onClick = onLogout
+            )
         }
     }
 }
 
 // Cabecera verde de marca: botón de volver, título "Perfil" centrado y lápiz
-// de editar. Usa el verde de la app en lugar del navy del diseño original.
 @Composable
 private fun SettingsHeader(onBack: () -> Unit, onEdit: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(150.dp)
+            // Conserva el verde y el texto blanco también en modo oscuro.
+            .keepOriginalColorsInDark()
             .background(
                 Brush.verticalGradient(
-                    listOf(Color(0xFF17A34A),Color(0xFF17A34A), Color(0xFFE4E5E4))
+                    listOf(
+                        Color(0xFF17A34A),
+                        Color(0xFF17A34A),
+                        // En oscuro funde hacia gris oscuro.
+                        if (LocalDarkThemeActive.current) Color(0xFF262729) else Color(0xFFE4E5E4)
+                    )
                 )
             )
     ) {
@@ -208,8 +226,7 @@ private fun SettingsSectionTitle(title: String) {
     )
 }
 
-// Fila de ajuste: chip con icono, etiqueta y flecha. [onClick] opcional: las
-// filas aún sin destino quedan inertes.
+// Fila de ajuste: chip con icono, etiqueta y flecha; onClick opcional.
 @Composable
 private fun SettingsRow(
     icon: ImageVector,

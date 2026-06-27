@@ -90,16 +90,13 @@ fun CalendarScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                // Solo el inset inferior: el superior ya lo aporta el NavHost de
-                // MainActivity, así el header verde llega hasta arriba sin franja
-                // blanca encima.
+                // Solo el inset inferior; el superior lo aporta el NavHost.
                 .padding(bottom = padding.calculateBottomPadding())
         ) {
             // Header compacto: indica al paciente que está en el Calendario.
             ScreenHeader(title = "Calendario", icon = HugeIcons.Calendar)
 
             // Panel de contenido: esquinas superiores redondeadas que se solapan
-            // hacia arriba sobre el header verde (mismo patrón que el Home).
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -175,8 +172,6 @@ fun CalendarScreen(
 }
 
 // Tarjeta del calendario (diseño de la imagen): tarjeta verde oscura con el mes
-// centrado y flechas a los lados, la tira de los 7 días de la semana y, abajo,
-// el botón de añadir recordatorio.
 @Composable
 private fun CalendarCard(
     selectedDate: LocalDate,
@@ -193,6 +188,8 @@ private fun CalendarCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            // Conserva el verde y el texto blanco también en modo oscuro.
+            .keepOriginalColorsInDark()
             .shadow(elevation = 4.dp, shape = RoundedCornerShape(28.dp))
             .clip(RoundedCornerShape(28.dp))
             .background(CuidaGreen)
@@ -205,15 +202,20 @@ private fun CalendarCard(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                contentDescription = "Semana anterior",
-                tint = Color.White,
+            Box(
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(48.dp)
                     .clip(CircleShape)
-                    .clickable(role = Role.Button, onClick = onPreviousWeek)
-            )
+                    .clickable(role = Role.Button, onClick = onPreviousWeek),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                    contentDescription = "Semana anterior",
+                    tint = Color.White,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
             Text(
                 text = monthLabel,
                 fontFamily = Urbanist,
@@ -221,15 +223,20 @@ private fun CalendarCard(
                 fontWeight = FontWeight.ExtraBold,
                 color = Color.White
             )
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = "Semana siguiente",
-                tint = Color.White,
+            Box(
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(48.dp)
                     .clip(CircleShape)
-                    .clickable(role = Role.Button, onClick = onNextWeek)
-            )
+                    .clickable(role = Role.Button, onClick = onNextWeek),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = "Semana siguiente",
+                    tint = Color.White,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
         }
 
         WeekStrip(
@@ -257,7 +264,6 @@ private fun CalendarCard(
 }
 
 // Tira horizontal con los 7 días de la semana de la fecha seleccionada
-// (de lunes a domingo). El día elegido se resalta con un círculo verde.
 @Composable
 private fun WeekStrip(
     selectedDate: LocalDate,
@@ -304,8 +310,7 @@ private fun WeekDayCell(
         if (hasEvents) append(", con eventos")
     }
 
-    // Colores pensados para la tarjeta verde oscura: texto blanco, y el día
-    // seleccionado en un círculo claro (verde claro) con número oscuro.
+    // Colores para la tarjeta verde: texto blanco y día seleccionado en círculo claro.
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(20.dp))
@@ -381,11 +386,8 @@ private fun DayAgenda(
     val nowScrollIndex = (now.hour - 1).coerceAtLeast(0)
 
     // Solo mientras se está scrolleando la lista, la tarjeta de la fecha se
-    // compacta en forma de píldora; en reposo vuelve a tarjeta normal.
     val scrolled = listState.isScrollInProgress
     // Solo se anima el radio y la sombra (cambios de DIBUJO, baratos). NO se
-    // anima el tamaño de texto ni el padding: eso re-mediría y re-dispondría la
-    // lista en cada frame y causaba el tirón a ~10 fps.
     val cardCorner by animateDpAsState(targetValue = if (scrolled) 50.dp else 0.dp, label = "cardCorner")
     val cardElevation by animateDpAsState(targetValue = if (scrolled) 3.dp else 0.dp, label = "cardElevation")
     val cardShape = RoundedCornerShape(cardCorner)
@@ -445,8 +447,7 @@ private fun DayAgenda(
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             state = listState,
-            // Margen inferior para que la última hora (23:00) no quede tapada por
-            // la barra flotante de navegación superpuesta.
+            // Margen inferior para que la ultima hora (23:00) no quede tapada.
             contentPadding = PaddingValues(bottom = 120.dp)
         ) {
             items(hours) { hour ->
@@ -469,7 +470,6 @@ private fun DayAgenda(
 }
 
 // Una franja horaria del eje: etiqueta de hora a la izquierda y, a la derecha,
-// las cajas de los eventos que empiezan en esa hora (puede no haber ninguno).
 @Composable
 private fun HourRow(
     hour: Int,
@@ -492,7 +492,6 @@ private fun HourRow(
             modifier = Modifier.width(HOUR_AXIS_WIDTH)
         )
         // Las completadas van al final; las pendientes primero. Todas las cajas
-        // de la misma hora se forman en horizontal, con scroll si no caben.
         val ordered = events.sortedWith(compareBy({ isCompleted(it) }, { it.time }))
         Row(
             modifier = Modifier
@@ -553,8 +552,6 @@ private fun NowIndicator() {
 }
 
 // Caja del recordatorio: nombre del evento, su hora y un checkbox para marcarlo
-// como completado. Al pulsar la caja se abre el diálogo editable; al pulsar el
-// checkbox se marca/desmarca como completado (independiente de la hora).
 @Composable
 private fun EventBox(
     event: Event,
@@ -629,8 +626,7 @@ private fun CompletionCheck(isCompleted: Boolean, onToggle: () -> Unit) {
     }
 }
 
-// Colores de la app para los controles Material de los diálogos (en lugar del
-// morado por defecto de Material Design).
+// Colores de la app para los controles Material de los diálogos.
 @Composable
 private fun appSwitchColors() = SwitchDefaults.colors(
     checkedThumbColor = Color.White,
@@ -826,8 +822,6 @@ fun AddEventDialog(initialDate: LocalDate, onDismiss: () -> Unit, onSave: (Event
 }
 
 // Diálogo de detalle y edición de un evento: muestra el nombre y permite editar
-// la descripción, la hora, si es recurrente (y en qué días) y si tiene alarma.
-// Al guardar reemplaza el evento (mismo id) y reprograma la alarma.
 @Composable
 fun EventDetailsDialog(
     event: Event,

@@ -46,13 +46,7 @@ data class FloatingNavItem(
     val icon: ImageVector
 )
 
-/**
- * Barra inferior flotante dinámica: píldora clara despegada de los bordes.
- * Los ítems inactivos son solo un icono dentro de un círculo claro (sin
- * texto); el ítem activo se expande horizontalmente con fondo oscuro y
- * muestra icono + etiqueta. Construida con Row propia porque NavigationBar
- * nativo no permite esta morfología.
- */
+/** Barra inferior flotante dinámica: píldora clara despegada de los bordes. */
 @Composable
 fun FloatingNavBar(
     items: List<FloatingNavItem>,
@@ -93,7 +87,6 @@ private fun FloatingNavBarItem(
     onClick: () -> Unit
 ) {
     // Inactivo: círculo claro solo con icono. Activo: píldora en el verde
-    // de marca, expandida con icono a la izquierda y etiqueta a la derecha.
     val containerColor by animateColorAsState(
         targetValue = if (isSelected) CuidaGreen else CuidaSurfaceMuted,
         label = "navItemBackground"

@@ -218,7 +218,6 @@ private fun GameQuestionContent(
     onConfirm: (String) -> Unit
 ) {
     // La opción elegida es estado de UI: se confirma con el botón inferior,
-    // siguiendo el flujo "seleccionar → Confirmar respuesta" del diseño.
     var selectedOption by remember(contactKey) { mutableStateOf<String?>(null) }
 
     Column(
@@ -260,7 +259,8 @@ private fun GameQuestionContent(
                     .fillMaxWidth()
                     .height(180.dp)
                     .clip(RoundedCornerShape(24.dp))
-                    .background(CuidaGreenSurface),
+                    .background(CuidaGreenSurface)
+                    .keepOriginalColorsInDark(),
                 contentScale = ContentScale.Crop
             )
         }

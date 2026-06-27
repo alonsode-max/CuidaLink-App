@@ -11,9 +11,7 @@ class CalendarViewModel : ViewModel() {
     private val _events = MutableStateFlow<List<Event>>(emptyList())
     val events: StateFlow<List<Event>> = _events.asStateFlow()
 
-    // Tomas/recordatorios marcados como completados. La clave es por evento y por
-    // fecha ("id|fecha") porque un evento recurrente se repite cada día. El
-    // completado depende SOLO de marcar el checkbox, no de que pase la hora.
+    // Tomas/recordatorios completados, indexados por evento y fecha.
     private val _completed = MutableStateFlow<Set<String>>(emptySet())
     val completed: StateFlow<Set<String>> = _completed.asStateFlow()
 
@@ -45,9 +43,6 @@ class CalendarViewModel : ViewModel() {
             if (e.id == event.id) {
                 if (e.isRecurring) {
                     // Si es recurrente, no es trivial eliminar un solo día sin añadir excepciones.
-                    // Por ahora, si es recurrente lo tratamos como eliminar todo o nada,
-                    // o podrías implementar una lista de exclusión.
-                    // Para simplificar según lo pedido, si es una fecha específica:
                     e.copy(dates = e.dates.filter { it != date })
                 } else {
                     val newDates = e.dates.filter { it != date }

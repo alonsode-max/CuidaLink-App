@@ -64,6 +64,8 @@ import com.example.cuidalink.model.Event
 import com.example.cuidalink.ui.icons.HugeIcons
 import com.example.cuidalink.ui.theme.CuidaGreen
 import com.example.cuidalink.ui.theme.CuidaGreenDark
+import com.example.cuidalink.ui.theme.LocalDarkThemeActive
+import com.example.cuidalink.ui.theme.keepOriginalColorsInDark
 import com.example.cuidalink.ui.theme.CuidaGreenSurface
 import com.example.cuidalink.ui.theme.CuidaTextPrimary
 import com.example.cuidalink.ui.theme.CuidaTextSecondary
@@ -74,12 +76,10 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
 
-// Datos del paciente de ejemplo. Sustituir cuando exista un ViewModel de
-// perfil con datos reales del backend.
+// Datos del paciente de ejemplo; sustituir al integrar backend.
 private const val PATIENT_NAME = "Ernesto"
 
 // Dosis por defecto cuando el evento de medicación no trae descripción
-// (simula el campo de la tabla 'medicines').
 private const val DEFAULT_DOSE = "1 comprimido"
 
 private const val SECONDS_PER_MINUTE = 60
@@ -89,7 +89,6 @@ private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 private val dateFormatter = DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM", spanishLocale)
 
 // Frases para la sección "Frase del día". Para añadir más, basta con agregar
-// otra entrada a esta lista; el Home elige una según el día del año.
 private data class DailyPhrase(val text: String, val author: String)
 
 private val dailyPhrases = listOf(
@@ -98,12 +97,7 @@ private val dailyPhrases = listOf(
     DailyPhrase("\"Hoy es un buen día para hacer algo que te guste.\"", "— Con cariño, tu familia")
 )
 
-/**
- * Home del paciente: cabecera sólida (saludo, hora, nombre y fecha) + tarjeta
- * de urgencia (próxima medicación) + tarjeta suave de logro. La navegación y
- * el SOS viven en la barra inferior con recorte del Scaffold (ver
- * MainActivity / SosBottomBar).
- */
+/** Home del paciente: cabecera de saludo y tarjetas de accion. */
 @Composable
 fun DashboardScreen(
     modifier: Modifier = Modifier,
@@ -122,7 +116,6 @@ fun DashboardScreen(
             .sortedBy { it.time }
     }
     // Tomas de hoy ya completadas (hora < ahora): se usan para el progreso real
-    // del medidor (completadas / total del día).
     val completedMedicationCount = remember(events) {
         events.count { it.occursOn(today) && isMedicationEvent(it.name) && it.time.isBefore(now) }
     }
@@ -139,13 +132,11 @@ fun DashboardScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 // "Parte de abajo" (donde van las cartas): esquinas superiores
-                // redondeadas; se solapa un poco hacia arriba sobre el header.
                 .offset(y = (-28).dp)
                 .clip(RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp))
                 .background(Color.White)
                 .padding(horizontal = 10.dp)
                 // Margen inferior amplio para que las tarjetas puedan
-                // desplazarse por encima de la barra flotante superpuesta.
                 .padding(top = 15.dp, bottom = 110.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
@@ -161,8 +152,6 @@ fun DashboardScreen(
 }
 
 // Cabecera sólida en verde azulado con esquinas inferiores redondeadas. Texto
-// en blanco y tipografía gruesa (ExtraBold). A la izquierda: fecha, saludo con
-// el nombre y emoji; a la derecha: la hora en tamaño masivo.
 @Composable
 private fun PatientHeader() {
     var now by remember { mutableStateOf(LocalTime.now()) }
@@ -189,14 +178,17 @@ private fun PatientHeader() {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            // Sin altura fija: el header se ajusta a su contenido, así en
-            // cualquier pantalla/escala de fuente el panel blanco que se solapa
-            // (-28dp) solo cubre el margen verde de abajo y nunca el texto.
-            // Degradado verde muy sutil. Colores literales (no tokens de la
-            // paleta) para ajustarlos aquí sin afectar al resto de la app.
+            // Sin altura fija: el header se ajusta a su contenido.
+            .keepOriginalColorsInDark()
             .background(
                 Brush.verticalGradient(
-                    listOf(Color(0xFF17A34A),Color(0xFF17A34A),Color(0xFF17A34A), Color(0xFFE4E5E4))
+                    listOf(
+                        Color(0xFF17A34A),
+                        Color(0xFF17A34A),
+                        Color(0xFF17A34A),
+                        // En oscuro funde hacia gris oscuro.
+                        if (LocalDarkThemeActive.current) Color(0xFF262729) else Color(0xFFE4E5E4)
+                    )
                 )
             )
     ) {
@@ -205,7 +197,6 @@ private fun PatientHeader() {
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
                 // Margen inferior amplio: deja espacio verde bajo las píldoras
-                // para que el solape del panel no tape contenido.
                 .padding(top = 24.dp, bottom = 52.dp)
                 .semantics(mergeDescendants = true) {
                     contentDescription = "$greeting. Hola, $PATIENT_NAME. $dateText"
@@ -289,7 +280,6 @@ private fun PatientHeader() {
 }
 
 // Frase del día: solo texto, sin tarjeta ni borde. Cambia cada día recorriendo
-// la lista dailyPhrases según el día del año.
 @Composable
 private fun DailyQuote() {
     val phrase = remember { dailyPhrases[LocalDate.now().dayOfYear % dailyPhrases.size] }
@@ -349,8 +339,7 @@ private fun TranslucentPill(content: @Composable () -> Unit) {
     }
 }
 
-// Avatar de perfil para el header (mismas iniciales que en la pantalla de
-// perfil, sobre un círculo claro con borde blanco para resaltar en el verde).
+// Avatar de perfil para el header (mismas iniciales que en Perfil).
 @Composable
 private fun ProfileAvatar(modifier: Modifier = Modifier) {
     // Cuadrada con esquinas redondeadas (en vez de círculo).
@@ -375,7 +364,6 @@ private fun ProfileAvatar(modifier: Modifier = Modifier) {
 }
 
 // Tarjeta de medicación (diseño de la foto): fondo verde claro, botón que abre
-// el calendario, título, medidor semicircular de tomas pendientes y chips.
 @Composable
 private fun MedicationCard(
     medication: Event?,
@@ -431,7 +419,6 @@ private fun MedicationCard(
             )
         }
         // Botón de redirección al calendario, superpuesto arriba a la derecha
-        // (no ocupa sitio en la fila, así el gauge no se mueve).
         RedirectButton(
             onClick = onOpenCalendar,
             modifier = Modifier.align(Alignment.TopEnd).offset(x = 12.dp, y = -12.dp)
@@ -483,7 +470,6 @@ private fun PendingGauge(
     modifier: Modifier = Modifier
 ) {
     // El arco representa el progreso real del día: completadas / total. Con 1
-    // pendiente y 1 completada, el total es 2 y el arco se llena a la mitad.
     val total = pendingCount + completedCount
     val progress = if (total > 0) completedCount.toFloat() / total else 0f
 
@@ -547,8 +533,6 @@ private fun PendingGauge(
 }
 
 // Rejilla "Bento Box": un Row con dos columnas de igual ancho y misma altura
-// total; dentro, tarjetas asimétricas (weights 0.4 / 0.6) que encajan como
-// piezas de Tetris. Datos de ejemplo (pasos, batería, etc.).
 @Composable
 private fun BentoBox(onPlay: () -> Unit) {
     Row(
@@ -591,8 +575,7 @@ private fun BentoBox(onPlay: () -> Unit) {
     }
 }
 
-// Estilo base de tarjeta Bento: ocupa todo su peso, blanca, muy redondeada y
-// con sombra tonal suave (mismo lenguaje que el resto de tarjetas del Home).
+// Estilo base de tarjeta Bento: blanca, muy redondeada y con sombra tenue.
 private fun Modifier.bentoCard(): Modifier = this
     .fillMaxSize()
     .shadow(elevation = 3.dp, shape = RoundedCornerShape(24.dp))
@@ -600,7 +583,6 @@ private fun Modifier.bentoCard(): Modifier = this
     .background(Color.White)
 
 // Tarjeta pequeña: icono al lado del texto (sin fondo de badge). Opcionalmente
-// clicable para redirigir a otra pantalla.
 @Composable
 private fun BentoInfoCard(
     modifier: Modifier,
@@ -645,8 +627,6 @@ private fun BentoInfoCard(
 }
 
 // Tarjeta grande de batería (diseño de la imagen): fondo en degradado verde,
-// título "Batería" con rayo, porcentaje grande y un medidor de barras. Sin el
-// texto de última carga ni los recuadros de variación.
 @Composable
 private fun BentoBatteryCard(modifier: Modifier) {
     val percent = rememberBatteryLevel()
@@ -654,6 +634,8 @@ private fun BentoBatteryCard(modifier: Modifier) {
     Column(
         modifier = modifier
             .fillMaxSize()
+            // Conserva el verde y el texto blanco también en modo oscuro.
+            .keepOriginalColorsInDark()
             .shadow(elevation = 3.dp, shape = shape)
             .clip(shape)
             .background(Brush.verticalGradient(listOf(CuidaGreen, CuidaGreenSurface)))
@@ -689,7 +671,6 @@ private fun BentoBatteryCard(modifier: Modifier) {
 }
 
 // Lee el nivel de batería real del dispositivo y se actualiza cuando cambia,
-// escuchando ACTION_BATTERY_CHANGED. Devuelve un porcentaje 0..100.
 @Composable
 private fun rememberBatteryLevel(): Int {
     val context = LocalContext.current
@@ -720,7 +701,6 @@ private fun currentBatteryLevel(context: Context): Int {
 }
 
 // Medidor de batería: barras verticales dentro de una píldora blanca; se pintan
-// en verde las correspondientes al porcentaje y el resto en verde claro.
 @Composable
 private fun BatteryGauge(percent: Int) {
     val totalBars = 16
@@ -746,8 +726,7 @@ private fun BatteryGauge(percent: Int) {
     }
 }
 
-// Tarjeta grande de pasos: título "Tus pasos" + flecha arriba, cifra grande y
-// un degradado radial naranja->lavanda que brilla desde el borde inferior.
+// Tarjeta de pasos: titulo, cifra grande y progreso.
 @Composable
 private fun BentoStepsCard(modifier: Modifier) {
     val shape = RoundedCornerShape(24.dp)

@@ -29,14 +29,9 @@ import java.time.LocalDate
 import java.time.format.TextStyle
 
 // Subtítulo del header. La app todavía no rastrea minutos jugados, así que se
-// mantiene como texto fijo orientativo.
 private const val DAILY_MINUTES_LABEL = "12 minutos al día"
 
-/**
- * Centro de estimulación cognitiva (sección 2B "Tu entrenamiento" del diseño).
- * La tarjeta principal "Juego del día" es el único acceso al juego de los
- * contactos (GameScreen) tras retirarlo de la barra de navegación.
- */
+/** Centro de estimulación cognitiva (sección 2B "Tu entrenamiento" del diseño). */
 @Composable
 fun CognitiveCenterScreen(
     modifier: Modifier = Modifier,
@@ -57,7 +52,6 @@ fun CognitiveCenterScreen(
         )
 
         // Panel de contenido con esquinas superiores redondeadas que se solapa
-        // hacia arriba sobre el header verde (mismo patrón que el Home).
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -66,8 +60,7 @@ fun CognitiveCenterScreen(
                 .background(Color.White)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 22.dp)
-                // Margen inferior para que las tarjetas pasen por encima de la
-                // barra flotante de navegación.
+                // Margen inferior para que las tarjetas solapen la cabecera.
                 .padding(top = 20.dp, bottom = 120.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -94,12 +87,11 @@ private fun DailyGameCard(onPlayGame: () -> Unit) {
                 .background(CuidaGreenSurface),
             contentAlignment = Alignment.Center
         ) {
-            // Ilustración de familiares. Se recorta centrada para llenar la
-            // cabecera de la tarjeta del juego del día.
+            // Ilustracion de familiares, recortada centrada.
             Image(
                 painter = painterResource(id = R.drawable.identificar_familiar),
                 contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().keepOriginalColorsInDark(),
                 contentScale = ContentScale.Crop
             )
         }
@@ -143,11 +135,7 @@ private fun DailyGameCard(onPlayGame: () -> Unit) {
     }
 }
 
-/**
- * Segundo juego disponible localmente ("Parejas de Emojis"). Reutiliza el mismo
- * estilo visual que la tarjeta del juego del día: fondo blanco, esquinas muy
- * redondeadas, sombra suave y botón verde "Jugar ahora".
- */
+/** Segundo juego local: "Parejas de Emojis". */
 @Composable
 private fun EmojiPairsCard(onPlay: () -> Unit) {
     Column(
@@ -164,12 +152,11 @@ private fun EmojiPairsCard(onPlay: () -> Unit) {
                 .background(CuidaGreenSurface),
             contentAlignment = Alignment.Center
         ) {
-            // Ilustración del juego de parejas (gatitos). Se recorta centrada para
-            // llenar la cabecera sin duplicar el título ni el botón del banner.
+            // Ilustracion del juego de parejas, recortada centrada.
             Image(
                 painter = painterResource(id = R.drawable.parejas_emojis),
                 contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().keepOriginalColorsInDark(),
                 contentScale = ContentScale.Crop
             )
         }

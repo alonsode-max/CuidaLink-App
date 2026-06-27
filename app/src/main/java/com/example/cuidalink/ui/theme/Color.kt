@@ -3,15 +3,12 @@ package com.example.cuidalink.ui.theme
 import androidx.compose.ui.graphics.Color
 
 // Paleta CuidaLink (diseño "CuidaLink App")
-// Verde oficial de la app (#17A34A), sólido: se usa como color de marca en
-// botones, cabecera, textos de acento, etc.
 val CuidaGreen = Color(0xFF17A34A)
 val CuidaGreenDark = Color(0xFF0C7A52)
 val CuidaGreenSurface = Color(0xFFE7F5EF)
 val CuidaGreenSurfaceHover = Color(0xFFD2EDE1)
 val CuidaGreenLight = Color(0xFF7FD8AC)
-// Verde de acento del modo de auxilio (diseño "Exploración" · sección 3): un
-// verde algo más profundo que el de marca, usado en la guía de calma y el mapa.
+// Verde de acento del modo de auxilio.
 val CuidaGreenAccent = Color(0xFF119B68)
 val CuidaGreenSubtle = Color(0xFF3D6B58)
 val CuidaTextPrimary = Color(0xFF000000)
@@ -34,6 +31,5 @@ val CuidaAmberSurface = Color(0xFFF7EFDF)
 val CuidaBlue = Color(0xFF3E7BBF)
 val CuidaBlueSurface = Color(0xFFE8F0F8)
 val CuidaHeaderTeal = Color(0xFF528F8D)
-// Tono claro al que desvanece el degradado verde de las cabeceras (header del
-// Home y ScreenHeader). Antes estaba escrito como literal en cada pantalla.
+// Tono claro al que desvanece el degradado verde de las cabeceras.
 val CuidaHeaderGradientEnd = Color(0xFFE4E5E4)

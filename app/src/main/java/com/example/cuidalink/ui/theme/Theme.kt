@@ -8,7 +8,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 
 // El diseño de CuidaLink define una única apariencia clara con la paleta verde.
-// Se desactiva el color dinámico para respetar la identidad visual del prototipo.
 private val CuidaLinkColorScheme = lightColorScheme(
     primary = CuidaGreen,
     onPrimary = Color.White,
@@ -39,7 +38,6 @@ fun CuidaLinkTheme(
         typography = Typography
     ) {
         // Aplica Urbanist por defecto a TODO el texto, incluido el que no
-        // usa explícitamente un estilo del tema (Text con solo tamaño/peso).
         CompositionLocalProvider(
             LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = Urbanist),
             content = content

@@ -45,6 +45,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.cuidalink.ui.theme.CuidaGreen
 import com.example.cuidalink.ui.theme.CuidaGreenSurface
+import com.example.cuidalink.ui.theme.LocalDarkThemeActive
+import com.example.cuidalink.ui.theme.keepOriginalColorsInDark
 import com.example.cuidalink.ui.theme.CuidaRed
 import com.example.cuidalink.ui.theme.CuidaTextSecondary
 import kotlin.math.atan2
@@ -52,44 +54,36 @@ import kotlin.math.min
 import kotlin.math.sqrt
 
 // Teléfono de emergencias. La llamada la confirma la persona usuaria (se abre
-// el marcador con ACTION_DIAL, no se llama directamente).
 const val EMERGENCY_PHONE = "112"
 
 // Geometría de la barra con recorte y del FAB acoplado. El radio del recorte
-// es algo mayor que el del FAB para dejar un anillo de fondo a su alrededor.
 private val FAB_SIZE = 72.dp
 private val NOTCH_RADIUS = 44.dp
 private val BAR_HEIGHT = 72.dp
-// Radio grande: con clamp a la mitad de la altura la barra queda como una
-// píldora (extremos totalmente redondeados).
+// Radio grande: con clamp a media altura la barra queda como pildora.
 private val BAR_CORNER = 100.dp
 
 // Desplazamiento que baja el FAB centrado hasta encajar en el recorte:
-// Scaffold lo flota 16dp (FabSpacing de Material 3) por encima de la barra,
-// así que lo bajamos esa separación más medio FAB para que su centro quede
-// justo sobre el borde superior de la barra (el centro del recorte).
 val FAB_DOCK_OFFSET = FAB_SIZE / 2 + 16.dp
 
-/**
- * Botón SOS: FAB redondo grande de alto contraste. Se coloca en el slot
- * `floatingActionButton` del Scaffold con `FabPosition.Center` y se baja con
- * `Modifier.offset(y = FAB_DOCK_OFFSET)` para sobresalir y encajar en el
- * recorte de [SosBottomBar].
- */
+/** Boton SOS: FAB redondo grande de alto contraste. */
 @Composable
 fun SosFab(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(
-        modifier = modifier.size(FAB_SIZE),
+        // El SOS conserva su rojo y su texto blanco también en modo oscuro.
+        modifier = modifier.size(FAB_SIZE).keepOriginalColorsInDark(),
         contentAlignment = Alignment.Center
     ) {
-        // Resplandor rojo difuso que asoma por los bordes del botón (glow).
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .blur(radius = 22.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
-                .clip(CircleShape)
-                .background(CuidaRed)
-        )
+        // Resplandor rojo difuso que asoma por los bordes del botón (glow). En
+        if (!LocalDarkThemeActive.current) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(radius = 22.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
+                    .clip(CircleShape)
+                    .background(CuidaRed)
+            )
+        }
         FloatingActionButton(
             onClick = onClick,
             modifier = Modifier
@@ -125,12 +119,7 @@ fun SosFab(onClick: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
-/**
- * Barra inferior estilo "píldora flotante": blanca, despegada de los bordes
- * (padding externo), con todos los bordes redondeados y un recorte central
- * donde encaja el FAB de SOS. Los accesos se reparten a los lados del recorte:
- * [leftItems] a la izquierda y [rightItems] a la derecha (Perfil el último).
- */
+/** Barra inferior estilo pildora flotante con hueco central para el SOS. */
 @Composable
 fun SosBottomBar(
     leftItems: List<FloatingNavItem>,
@@ -142,16 +131,16 @@ fun SosBottomBar(
     val shape = remember {
         CutoutBottomBarShape(cornerRadius = BAR_CORNER, cutoutRadius = NOTCH_RADIUS)
     }
+    // En modo oscuro la sombra invertida se compensa.
+    val barElevation = if (LocalDarkThemeActive.current) 0.dp else 14.dp
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
             // Despega la píldora de los bordes (sin padding arriba: el borde
-            // superior debe coincidir con donde el Scaffold flota el FAB para
-            // que encaje en el recorte).
             .padding(start = 10.dp, end = 10.dp, bottom = 10.dp)
-            .shadow(elevation = 14.dp, shape = shape)
+            .shadow(elevation = barElevation, shape = shape)
             .clip(shape)
             .background(Color.White)
     ) {
@@ -176,7 +165,6 @@ fun SosBottomBar(
                 }
             }
             // Hueco central: deja libre el ancho del recorte para que ningún
-            // acceso quede tapado por el FAB.
             Spacer(modifier = Modifier.width(FAB_SIZE + 20.dp))
             Row(
                 modifier = Modifier.weight(1f),
@@ -196,15 +184,19 @@ fun SosBottomBar(
 }
 
 // Acceso de la barra: solo icono dentro de un objetivo táctil amplio. El
-// seleccionado se resalta con un círculo verde claro. El texto va en la
-// descripción de accesibilidad (la píldora flotante prioriza claridad visual).
 @Composable
 private fun NavBarButton(
     item: FloatingNavItem,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val tint = if (isSelected) CuidaGreen else CuidaTextSecondary
+    // En modo oscuro los iconos van blancos con contra-filtro.
+    val dark = LocalDarkThemeActive.current
+    val tint = when {
+        dark -> Color.White
+        isSelected -> CuidaGreen
+        else -> CuidaTextSecondary
+    }
     val background = if (isSelected) CuidaGreenSurface else Color.Transparent
 
     Box(
@@ -223,17 +215,14 @@ private fun NavBarButton(
             imageVector = item.icon,
             contentDescription = null,
             tint = tint,
-            modifier = Modifier.size(26.dp)
+            modifier = Modifier
+                .size(26.dp)
+                .keepOriginalColorsInDark()
         )
     }
 }
 
-/**
- * Forma de la barra inferior: píldora (todos los bordes redondeados, radio
- * limitado a la mitad de la altura) con un recorte semicircular en el centro
- * del borde superior. El interior del recorte queda fuera de la forma,
- * dejando ver el fondo de la pantalla alrededor del FAB acoplado.
- */
+/** Forma de la barra inferior: pildora con bordes muy redondeados. */
 private class CutoutBottomBarShape(
     private val cornerRadius: Dp,
     private val cutoutRadius: Dp
@@ -252,8 +241,6 @@ private class CutoutBottomBarShape(
         val s = with(density) { 12.dp.toPx() }
 
         // Cradle: el recorte es un semicírculo de radio r centrado en (cx, 0)
-        // (que envuelve el FAB de forma uniforme) y en cada entrada un pequeño
-        // hombro convexo de radio s, tangente a la línea superior y al círculo.
         val dx = sqrt(r * r + 2f * r * s)        // |cx - centro del hombro|
         val flCenterX = cx - dx                  // centro hombro izquierdo (y = s)
         val frCenterX = cx + dx                  // centro hombro derecho

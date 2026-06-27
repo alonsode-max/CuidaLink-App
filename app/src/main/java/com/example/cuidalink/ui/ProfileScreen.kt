@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -24,6 +25,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -58,7 +61,6 @@ import com.example.cuidalink.ui.theme.CuidaTextSecondary
 import com.example.cuidalink.ui.theme.Urbanist
 
 // Datos médicos de ejemplo (SOLO UI). Estos valores fijos se sustituyen cuando
-// exista la capa de datos real; esta pantalla es estrictamente visual.
 private const val PROFILE_NAME = "Ernesto García"
 private const val PROFILE_CODE = "@E1234"
 private const val PROFILE_AGE = "78"
@@ -87,7 +89,8 @@ fun ProfileScreen(
         ProfileIdentity()
         StatsCardWithPhoto()
         VitalInfoCard()
-        SupportNetworkCard(onOpenContacts = onOpenContacts)
+        SupportNetworkCard()
+        ContactsButton(onOpenContacts = onOpenContacts)
         Spacer(modifier = Modifier.height(8.dp))
     }
 }
@@ -134,8 +137,7 @@ private fun ProfileIdentity() {
     }
 }
 
-// 2. Tarjeta central: estadísticas (edad y grupo sanguíneo) con la foto de
-// perfil superpuesta sobre el borde superior de la tarjeta.
+// 2. Tarjeta central: estadísticas (edad y grupo sanguíneo).
 private val PHOTO_SIZE = 108.dp
 private val PHOTO_OVERHANG = 50.dp
 
@@ -179,14 +181,11 @@ private fun StatsCardWithPhoto() {
         }
 
         // Foto de perfil superpuesta (con botón de edición), con anillo blanco
-        // grueso para "recortar" visualmente la tarjeta.
         ProfilePhotoWithEdit()
     }
 }
 
 // Foto de perfil con un botón de edición que abre un menú con dos opciones:
-// "Editar foto de perfil" y "Editar información del perfil". Solo UI: los
-// onClick quedan listos para conectarse a la lógica real más adelante.
 @Composable
 private fun ProfilePhotoWithEdit() {
     var showMenu by remember { mutableStateOf(false) }
@@ -341,18 +340,12 @@ private fun MeasureItem(label: String, value: String, modifier: Modifier = Modif
     }
 }
 
-// 3b. Tarjeta "Red de Apoyo": médico de referencia y su teléfono. Toda la
-// tarjeta abre la lista de contactos.
+// 3b. Tarjeta "Red de Apoyo": médico de referencia y su teléfono.
 @Composable
-private fun SupportNetworkCard(onOpenContacts: () -> Unit) {
+private fun SupportNetworkCard() {
     val context = LocalContext.current
 
-    BentoCard(
-        title = "Red de Apoyo",
-        modifier = Modifier
-            .clickable(onClick = onOpenContacts)
-            .semantics { contentDescription = "Red de apoyo. Toca para ver tus contactos" }
-    ) {
+    BentoCard(title = "Red de Apoyo") {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
@@ -401,6 +394,35 @@ private fun SupportNetworkCard(onOpenContacts: () -> Unit) {
                 )
             }
         }
+    }
+}
+
+// Botón principal "Ver mis contactos": abre la pantalla de contactos. Reutiliza
+@Composable
+private fun ContactsButton(onOpenContacts: () -> Unit) {
+    Button(
+        onClick = onOpenContacts,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .semantics { contentDescription = "Ver mis contactos" },
+        shape = RoundedCornerShape(percent = 50),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = CuidaGreen,
+            contentColor = Color.White
+        )
+    ) {
+        Icon(
+            imageVector = HugeIcons.User,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+            text = "Ver mis contactos",
+            fontSize = 16.sp,
+            fontWeight = FontWeight.ExtraBold
+        )
     }
 }
 

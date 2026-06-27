@@ -8,11 +8,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.unit.dp
 
-/**
- * Subconjunto del pack gratuito Hugeicons (stroke rounded) usado por
- * CuidaLink, convertido a ImageVector desde @hugeicons/core-free-icons
- * v4.2.0. El color real lo aplica el tint de Icon().
- */
+/** Subconjunto del pack gratuito Hugeicons (stroke rounded) usado en la app. */
 object HugeIcons {
     /** Hugeicons "Home01" (stroke rounded). */
     val Home: ImageVector by lazy {

@@ -45,20 +45,11 @@ import com.example.cuidalink.ui.theme.*
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
-// Pantalla "3A · Ayuda en camino" (diseño Exploración, Sección 3 · Modo de
-// auxilio automático). Se muestra al activar el botón SOS: un mensaje
-// tranquilizador, una audioguía de calma, el mapa con la ubicación en vivo y el
-// botón rojo dominante para llamar al 112. Pensada para una persona mayor en
-// una situación de estrés: textos grandes, una sola acción dominante y un tono
-// que acompaña ("No te muevas, la ayuda viene en camino").
+// Pantalla "Ayuda en camino": confirma que el contacto fue avisado.
 
 private val ALERT_TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
-/**
- * @param contactName nombre del contacto principal que ha sido avisado.
- * @param onCall acción al pulsar "SOS · Llamar al 112" (abre el marcador).
- * @param onCancel acción al pulsar "Estoy bien, cancelar alerta" (vuelve atrás).
- */
+/** Pantalla de emergencia: avisa al contacto principal y permite cancelar. */
 @Composable
 fun EmergencyHelpScreen(
     modifier: Modifier = Modifier,
@@ -77,7 +68,6 @@ fun EmergencyHelpScreen(
         AlertBanner(time = alertTime)
 
         // Bloque central desplazable: si la pantalla es pequeña el contenido se
-        // puede recorrer sin tapar el botón de llamada, que queda siempre fijo.
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -164,8 +154,7 @@ private fun ReassuranceText(contactName: String) {
     }
 }
 
-// Audioguía de calma: tarjeta verde con un botón de reproducción y una barra de
-// progreso. De momento es informativa (sin reproducción real de audio).
+// Audioguía de calma: tarjeta verde con reproducción y barra de progreso.
 @Composable
 private fun CalmGuideCard() {
     Row(
@@ -228,8 +217,6 @@ private fun CalmGuideCard() {
 }
 
 // Marcador de posición del mapa en vivo: fondo de rayas diagonales con un punto
-// verde que representa la ubicación de la persona. (El mapa real se integrará
-// más adelante.)
 @Composable
 private fun LiveMapPlaceholder() {
     Box(
@@ -278,8 +265,7 @@ private fun LiveMapPlaceholder() {
     }
 }
 
-// Acciones fijas en la parte inferior: la llamada al 112 (acción dominante) y el
-// enlace para cancelar la alerta si la persona está bien.
+// Acciones inferiores: llamar al 112 y cancelar.
 @Composable
 private fun EmergencyActions(onCall: () -> Unit, onCancel: () -> Unit) {
     Column(

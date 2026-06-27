@@ -19,17 +19,13 @@ internal fun Event.occursOn(date: LocalDate): Boolean {
     return if (isRecurring) recurringDays.contains(date.dayOfWeek.value) else dates.contains(date)
 }
 
-// Palabras clave que identifican un evento de medicación. Se comparten con
-// eventStyleFor para que la tarjeta de "Próxima medicación" del Home use el
-// mismo criterio que el icono de la línea de tiempo.
+// Palabras clave que identifican un evento de medicacion.
 private val medicationKeywords = listOf(
     "medicament", "medicina", "medicación", "medicacion", "pastilla",
     "insulina", "jarabe", "dosis", "tomar", "vitamina", "comprimido"
 )
 
 // Palabras de cita/visita médica: NO son medicación aunque contengan "medic"
-// (p. ej. "ir al medico"). Se excluyen para que no sumen en el widget de
-// medicación del Home.
 private val appointmentKeywords = listOf(
     "médico", "medico", "doctor", "doctora", "hospital", "cita",
     "consulta", "revisión", "revision", "visita"
@@ -43,7 +39,6 @@ internal fun isMedicationEvent(name: String): Boolean {
 }
 
 // Icono y color según el tipo de actividad detectado en el nombre del evento,
-// imitando las categorías de color del diseño (verde, ámbar, azul).
 internal data class EventStyle(
     val icon: ImageVector,
     val color: Color,
@@ -55,8 +50,6 @@ internal fun eventStyleFor(name: String): EventStyle {
     fun matches(vararg keywords: String) = keywords.any { normalized.contains(it) }
 
     // Paleta en familia verde: todas las cajas combinan entre sí. Se distingue
-    // la categoría por el icono y por el tono de acento (verde / verde oscuro /
-    // teal), no por colores que choquen (ámbar, rojo, azul).
     return when {
         isMedicationEvent(name) ->
             EventStyle(HugeIcons.Medicine, CuidaGreen, CuidaGreenSurface)
@@ -74,7 +67,6 @@ internal fun eventStyleFor(name: String): EventStyle {
             EventStyle(HugeIcons.Puzzle, CuidaGreenDark, CuidaGreenSurfaceHover)
         else -> {
             // Sin categoría conocida: tono estable derivado del nombre, siempre
-            // dentro de la familia verde.
             val fallbackPalette = listOf(
                 EventStyle(HugeIcons.CalendarCheck, CuidaGreen, CuidaGreenSurface),
                 EventStyle(HugeIcons.CalendarCheck, CuidaGreenDark, CuidaGreenSurfaceHover),
