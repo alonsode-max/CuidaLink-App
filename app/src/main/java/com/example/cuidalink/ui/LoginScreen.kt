@@ -15,12 +15,17 @@ import com.example.cuidalink.viewmodel.LoginViewModel
 import com.example.cuidalink.viewmodel.SessionViewModel
 import com.example.cuidalink.viewmodel.LoginState
 
+/** Grupos sanguíneos estándar para el selector del registro. */
+private val BLOOD_GROUPS = listOf("O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-")
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
     viewModel: LoginViewModel,
     sessionViewModel: SessionViewModel
 ) {
     var isRegisterMode by remember { mutableStateOf(false) }
+    var bloodGroupExpanded by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     
@@ -117,12 +122,39 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(8.dp))
-            OutlinedTextField(
-                value = bloodGroup,
-                onValueChange = { bloodGroup = it; sessionViewModel.consumeLogin() },
-                label = { Text("Grupo sanguíneo") },
+            ExposedDropdownMenuBox(
+                expanded = bloodGroupExpanded,
+                onExpandedChange = { bloodGroupExpanded = !bloodGroupExpanded },
                 modifier = Modifier.fillMaxWidth()
-            )
+            ) {
+                OutlinedTextField(
+                    value = bloodGroup,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Grupo sanguíneo") },
+                    placeholder = { Text("Selecciona") },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = bloodGroupExpanded)
+                    },
+                    modifier = Modifier
+                        .menuAnchor()
+                        .fillMaxWidth()
+                )
+                ExposedDropdownMenu(
+                    expanded = bloodGroupExpanded,
+                    onDismissRequest = { bloodGroupExpanded = false }
+                ) {
+                    BLOOD_GROUPS.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(option) },
+                            onClick = {
+                                bloodGroup = option
+                                bloodGroupExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
                 value = allergies,

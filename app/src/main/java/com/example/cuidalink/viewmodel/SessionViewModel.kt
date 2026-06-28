@@ -9,9 +9,13 @@ import com.example.cuidalink.model.Caretaker
 import com.example.cuidalink.model.Patient
 import com.example.cuidalink.network.ProfileService
 import com.example.cuidalink.network.SupabaseConfig
+import com.example.cuidalink.repository.LinkRepository
+import com.example.cuidalink.repository.SupabaseLinkRepository
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
-import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.auth.status.SessionStatus
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -44,6 +48,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
     private val store = SessionStore(application)
     private val profileService = ProfileService()
+    private val linkRepository: LinkRepository = SupabaseLinkRepository()
 
     /** Estado de la sesion; null mientras se lee el DataStore (splash inicial). */
     val uiState: StateFlow<SessionUiState?> = store.session.stateIn(
@@ -82,81 +87,66 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun signUpPatient(
-        email: String, pass: String, name: String, age: Int,
-        bloodGroup: String, allergies: String, weight: Float, height: Float
-    ) {
-        viewModelScope.launch {
-            _loginState.value = LoginState.Loading
-            try {
-                // Registro en Auth con metadatos de usuario
-                val authResponse = SupabaseConfig.client.auth.signUpWith(Email) {
-                    this.email = email.trim()
-                    this.password = pass
-                    data = buildJsonObject {
-                        put("name", name)
-                        put("role", "patient")
-                    }
-                }
+    /**
+     * `true` si el paciente ya tiene un cuidador vinculado. Se usa tras el login
+     * para decidir si mostrar la pantalla del código (solo si aún NO está vinculado).
+     * Ante cualquier error asume que NO está vinculado, para mostrar la pantalla
+     * de vinculación en vez de saltarla al home.
+     */
+    suspend fun isPatientLinked(): Boolean =
+        linkRepository.isCurrentPatientLinked().getOrDefault(false)
 
-                val userId = authResponse?.id ?: throw Exception("No se recibió un ID de usuario tras el registro.")
+    /** Igual que [isPatientLinked] pero para el cuidador (ya tiene paciente). */
+    suspend fun isCaretakerLinked(): Boolean =
+        linkRepository.isCurrentCaretakerLinked().getOrDefault(false)
 
-                val patient = Patient(
-                    uid = userId,
-                    name = name,
-                    email = email.trim(),
-                    fcmToken = null,
-                    age = age,
-                    bloodGroup = bloodGroup,
-                    allergies = allergies,
-                    weight = weight,
-                    height = height,
-                    createdAt = Instant.now().toString()
-                )
-
-                SupabaseConfig.client.postgrest["patients"].insert(patient)
-                
-                store.saveSession(UserRole.PACIENTE)
-                _loginState.value = LoginState.Success(UserRole.PACIENTE)
-            } catch (e: Exception) {
-                Log.e("SignUpPatient", "Error detallado: ${e.message}", e)
-                _loginState.value = LoginState.Error(mapError(e))
-            }
+    /**
+     * Resuelve el rol del usuario YA autenticado. Primero intenta las cuentas demo;
+     * luego usa el `role` del metadata de Auth; por último cae a mirar en qué tabla 
+     * vive su uid. Devuelve null si no se puede determinar.
+     * Incluye reintentos para evitar carreras en el registro.
+     */
+    suspend fun resolveCurrentRole(): UserRole? {
+        // 1. Verificar si es una cuenta demo por el email de la sesión de Supabase
+        val email = SupabaseConfig.client.auth.currentUserOrNull()?.email?.lowercase()
+        if (email != null && (email == "cuidador@cuidalink.com" || email == "paciente@cuidalink.com")) {
+            return if (email.contains("cuidador")) UserRole.CUIDADOR else UserRole.PACIENTE
         }
+
+        repeat(3) { attempt ->
+            val metaRole = runCatching {
+                SupabaseConfig.client.auth.currentUserOrNull()
+                    ?.userMetadata?.get("role")?.jsonPrimitive?.content
+            }.getOrNull()
+
+            when (metaRole) {
+                "caretaker" -> return UserRole.CUIDADOR
+                "patient" -> return UserRole.PACIENTE
+            }
+
+            val dbRole = runCatching {
+                // Comprobación directa contra Supabase para evitar fallos de caché
+                val uid = SupabaseConfig.client.auth.currentUserOrNull()?.id
+                if (uid != null) {
+                    when {
+                        profileService.fetchCaretakerByUid(uid) != null -> UserRole.CUIDADOR
+                        profileService.fetchPatientByUid(uid) != null -> UserRole.PACIENTE
+                        else -> null
+                    }
+                } else null
+            }.getOrNull()
+
+            if (dbRole != null) return dbRole
+            
+            // Si es el primer o segundo intento y no hay rol, esperamos un poco (carrera en registro)
+            if (attempt < 2) delay(1000)
+        }
+        return null
     }
 
-    fun signUpCaretaker(email: String, pass: String, name: String) {
-        viewModelScope.launch {
-            _loginState.value = LoginState.Loading
-            try {
-                val authResponse = SupabaseConfig.client.auth.signUpWith(Email) {
-                    this.email = email.trim()
-                    this.password = pass
-                    data = buildJsonObject {
-                        put("name", name)
-                        put("role", "caretaker")
-                    }
-                }
-
-                val userId = authResponse?.id ?: throw Exception("No se recibió un ID de usuario tras el registro.")
-                
-                val caretaker = Caretaker(
-                    uid = userId,
-                    name = name,
-                    email = email.trim(),
-                    fcmToken = null,
-                    createdAt = Instant.now().toString()
-                )
-
-                SupabaseConfig.client.postgrest["caretakers"].insert(caretaker)
-                
-                store.saveSession(UserRole.CUIDADOR)
-                _loginState.value = LoginState.Success(UserRole.CUIDADOR)
-            } catch (e: Exception) {
-                Log.e("SignUpCaretaker", "Error: ${e.message}", e)
-                _loginState.value = LoginState.Error(mapError(e))
-            }
-        }
+    /** Guarda en disco la sesión local con el rol indicado (persistencia). */
+    fun persistSession(role: UserRole) {
+        viewModelScope.launch { store.saveSession(role) }
     }
 
     /** Resetea el estado tras navegar (evita re-disparar al volver al login). */

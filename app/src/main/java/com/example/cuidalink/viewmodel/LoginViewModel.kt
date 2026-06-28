@@ -30,11 +30,16 @@ class LoginViewModel : ViewModel() {
     val authState = _authState.asStateFlow()
 
     init {
-        // Observamos el estado de la sesión automáticamente para persistencia
+        // Observamos el estado de la sesión automáticamente para persistencia.
+        // Solo actualizamos a Authenticated si no estamos en medio de un proceso (Loading).
         viewModelScope.launch {
             SupabaseConfig.client.auth.sessionStatus.collect { status ->
                 when (status) {
-                    is SessionStatus.Authenticated -> _authState.value = AuthState.Authenticated
+                    is SessionStatus.Authenticated -> {
+                        if (_authState.value !is AuthState.Loading) {
+                            _authState.value = AuthState.Authenticated
+                        }
+                    }
                     is SessionStatus.NotAuthenticated -> _authState.value = AuthState.Idle
                     else -> {}
                 }
@@ -55,7 +60,7 @@ class LoginViewModel : ViewModel() {
                     this.email = email
                     password = pass
                 }
-                // No es necesario actualizar _authState aquí, sessionStatus lo hará
+                _authState.value = AuthState.Authenticated
             } catch (e: Exception) {
                 _authState.value = AuthState.Error(mapError(e))
             }
@@ -106,7 +111,8 @@ class LoginViewModel : ViewModel() {
                         throw e
                     }
                 }
-                // El estado Authenticated se actualizará vía sessionStatus
+                // Ahora que la base de datos está lista, pasamos a Authenticated
+                _authState.value = AuthState.Authenticated
             } catch (e: Exception) {
                 _authState.value = AuthState.Error(mapError(e))
             }
@@ -125,6 +131,10 @@ class LoginViewModel : ViewModel() {
                 val authResponse = SupabaseConfig.client.auth.signUpWith(Email) {
                     this.email = email
                     password = pass
+                    data = buildJsonObject {
+                        put("name", name)
+                        put("role", "caretaker")
+                    }
                 }
 
                 val userId = authResponse?.id ?: throw Exception("Error al obtener ID de usuario")
@@ -147,6 +157,8 @@ class LoginViewModel : ViewModel() {
                         throw e
                     }
                 }
+                // Ahora que la base de datos está lista, pasamos a Authenticated
+                _authState.value = AuthState.Authenticated
             } catch (e: Exception) {
                 Log.e("SignUp", "Error: ${e.message}", e)
                 _authState.value = AuthState.Error(mapError(e))

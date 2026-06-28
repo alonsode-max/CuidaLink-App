@@ -54,6 +54,12 @@ dependencies {
     // Mapas con OpenStreetMap (osmdroid): gratis y sin API key.
     implementation(libs.osmdroid.android)
 
+    // Generación de códigos QR (ZXing core, pura JVM, sin cámara).
+    implementation(libs.zxing.core)
+
+    // Escáner de QR con cámara (lanza su propia actividad de captura).
+    implementation(libs.zxing.android.embedded)
+
     // Supabase
     implementation(platform(libs.supabase.bom))
     implementation(libs.supabase.storage)
