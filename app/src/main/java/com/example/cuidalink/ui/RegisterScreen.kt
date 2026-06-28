@@ -67,7 +67,7 @@ import com.example.cuidalink.viewmodel.UserRole
 fun RegisterScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
-    onRegistered: () -> Unit = {},
+    onRegistered: (UserRole) -> Unit = {},
     viewModel: RegisterViewModel = viewModel()
 ) {
     val form by viewModel.form.collectAsState()
@@ -76,7 +76,7 @@ fun RegisterScreen(
     var passwordVisible by remember { mutableStateOf(false) }
 
     LaunchedEffect(submission) {
-        if (submission is RegisterSubmissionState.Success) onRegistered()
+        if (submission is RegisterSubmissionState.Success) onRegistered(form.role)
     }
 
     Column(

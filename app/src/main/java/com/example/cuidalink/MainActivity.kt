@@ -54,6 +54,8 @@ import com.example.cuidalink.ui.FloatingNavItem
 import com.example.cuidalink.ui.GameScreen
 import com.example.cuidalink.ui.LoginScreen
 import com.example.cuidalink.ui.RegisterScreen
+import com.example.cuidalink.ui.PatientShareCodeScreen
+import com.example.cuidalink.ui.CaretakerLinkScreen
 import com.example.cuidalink.ui.SosBottomBar
 import com.example.cuidalink.ui.SosFab
 import com.example.cuidalink.ui.ProfileScreen
@@ -223,7 +225,47 @@ class MainActivity : ComponentActivity() {
                             CircularProgressIndicator(color = CuidaGreen)
                         }
                     } else {
-                        // Grafo inicial según la sesión guardada: si ya hay login, va
+                        // Verificación de rol y vinculación global.
+                        // Si el estado de Auth dice que estamos autenticados, nos aseguramos
+                        // de que el rol local coincide con la realidad de Supabase.
+                        val authState by loginViewModel.authState.collectAsState()
+                        LaunchedEffect(authState) {
+                            if (authState is AuthState.Authenticated) {
+                                val actualRole = sessionViewModel.resolveCurrentRole()
+                                if (actualRole != null) {
+                                    sessionViewModel.persistSession(actualRole)
+                                    
+                                    // Verificar vinculación para redirigir si es necesario
+                                    val isLinked = when (actualRole) {
+                                        UserRole.PACIENTE -> sessionViewModel.isPatientLinked()
+                                        UserRole.CUIDADOR -> sessionViewModel.isCaretakerLinked()
+                                    }
+                                    
+                                    val currentRoute = navController.currentBackStackEntry?.destination?.route
+                                    
+                                    if (!isLinked) {
+                                        val target = if (actualRole == UserRole.CUIDADOR) "cuidador_vincular" else "paciente_codigo"
+                                        // Redirigir si no estamos en la pantalla de vinculación correcta ni ya vinculados
+                                        if (currentRoute != target) {
+                                            navController.navigate(target) {
+                                                popUpTo(navController.graph.id) { inclusive = true }
+                                                launchSingleTop = true
+                                            }
+                                        }
+                                    } else {
+                                        // Si está vinculado pero sigue en login o pantallas de vínculo, mover al grafo principal
+                                        if (currentRoute == "login" || currentRoute == "cuidador_vincular" || currentRoute == "paciente_codigo" || currentRoute == null) {
+                                            goToRoleGraph(actualRole)
+                                        }
+                                    }
+                                } else {
+                                    // Si no hay rol tras los reintentos, volvemos a login
+                                    sessionViewModel.logout()
+                                }
+                            }
+                        }
+
+                        // Grafo inicial según la sesión guardada.
                         val startGraph = if (loadedSession.isLoggedIn) {
                             if (loadedSession.role == UserRole.CUIDADOR) "caregiver_graph" else "patient_graph"
                         } else {
@@ -272,22 +314,56 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 // ----- Login (entrada de la app, fuera de los grafos) -----
                                 composable("login") {
-                                    val loginState by sessionViewModel.loginState.collectAsState()
-                                    LaunchedEffect(loginState) {
-                                        val current = loginState
-                                        if (current is LoginState.Success) {
-                                            goToRoleGraph(current.role)
-                                            sessionViewModel.consumeLogin()
+                                    // Tanto el login como el registro incrustado de LoginScreen
+                                    // terminan en AuthState.Authenticated: la resolución se
+                                    // maneja en el LaunchedEffect global de arriba.
+                                    val authState by loginViewModel.authState.collectAsState()
+
+                                    // Mientras se resuelve rol/vínculo tras autenticar,
+                                    // mostramos un spinner en vez del formulario o el home.
+                                    if (authState is AuthState.Authenticated) {
+                                        Box(
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            CircularProgressIndicator(color = CuidaGreen)
                                         }
+                                    } else {
+                                        LoginScreen(viewModel = loginViewModel)
                                     }
-                                    LoginScreen(viewModel = loginViewModel)
                                 }
 
                                 // ----- Registro (alta de cuenta, fuera de los grafos) -----
                                 composable("registro") {
                                     RegisterScreen(
                                         onBack = { navController.popBackStack() },
-                                        onRegistered = { navController.popBackStack() }
+                                        onRegistered = { role ->
+                                            // Tras el alta, cada rol va a su pantalla de vinculación.
+                                            val dest = if (role == UserRole.CUIDADOR) {
+                                                "cuidador_vincular"
+                                            } else {
+                                                "paciente_codigo"
+                                            }
+                                            navController.navigate(dest) {
+                                                popUpTo("registro") { inclusive = true }
+                                                launchSingleTop = true
+                                            }
+                                        }
+                                    )
+                                }
+
+                                // ----- Post-registro PACIENTE: muestra su código + QR -----
+                                composable("paciente_codigo") {
+                                    PatientShareCodeScreen(
+                                        onContinue = { goToRoleGraph(UserRole.PACIENTE) }
+                                    )
+                                }
+
+                                // ----- Post-registro CUIDADOR: escanea/introduce el código -----
+                                composable("cuidador_vincular") {
+                                    CaretakerLinkScreen(
+                                        onLinked = { goToRoleGraph(UserRole.CUIDADOR) },
+                                        onSkip = { goToRoleGraph(UserRole.CUIDADOR) }
                                     )
                                 }
 

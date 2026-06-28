@@ -6,8 +6,13 @@ import androidx.lifecycle.viewModelScope
 import com.example.cuidalink.data.SessionStore
 import com.example.cuidalink.network.ProfileService
 import com.example.cuidalink.network.SupabaseConfig
+import com.example.cuidalink.repository.LinkRepository
+import com.example.cuidalink.repository.SupabaseLinkRepository
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
+import io.github.jan.supabase.auth.status.SessionStatus
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -37,6 +42,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
     private val store = SessionStore(application)
     private val profileService = ProfileService()
+    private val linkRepository: LinkRepository = SupabaseLinkRepository()
 
     /** Estado de la sesion; null mientras se lee el DataStore (splash inicial). */
     val uiState: StateFlow<SessionUiState?> = store.session.stateIn(
@@ -79,6 +85,68 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                 onFailure = { LoginState.Error(mapError(it)) }
             )
         }
+    }
+
+    /**
+     * `true` si el paciente ya tiene un cuidador vinculado. Se usa tras el login
+     * para decidir si mostrar la pantalla del código (solo si aún NO está vinculado).
+     * Ante cualquier error asume que NO está vinculado, para mostrar la pantalla
+     * de vinculación en vez de saltarla al home.
+     */
+    suspend fun isPatientLinked(): Boolean =
+        linkRepository.isCurrentPatientLinked().getOrDefault(false)
+
+    /** Igual que [isPatientLinked] pero para el cuidador (ya tiene paciente). */
+    suspend fun isCaretakerLinked(): Boolean =
+        linkRepository.isCurrentCaretakerLinked().getOrDefault(false)
+
+    /**
+     * Resuelve el rol del usuario YA autenticado. Primero intenta las cuentas demo;
+     * luego usa el `role` del metadata de Auth; por último cae a mirar en qué tabla 
+     * vive su uid. Devuelve null si no se puede determinar.
+     * Incluye reintentos para evitar carreras en el registro.
+     */
+    suspend fun resolveCurrentRole(): UserRole? {
+        // 1. Verificar si es una cuenta demo por el email de la sesión de Supabase
+        val email = SupabaseConfig.client.auth.currentUserOrNull()?.email?.lowercase()
+        if (email != null && (email == "cuidador@cuidalink.com" || email == "paciente@cuidalink.com")) {
+            return if (email.contains("cuidador")) UserRole.CUIDADOR else UserRole.PACIENTE
+        }
+
+        repeat(3) { attempt ->
+            val metaRole = runCatching {
+                SupabaseConfig.client.auth.currentUserOrNull()
+                    ?.userMetadata?.get("role")?.jsonPrimitive?.content
+            }.getOrNull()
+
+            when (metaRole) {
+                "caretaker" -> return UserRole.CUIDADOR
+                "patient" -> return UserRole.PACIENTE
+            }
+
+            val dbRole = runCatching {
+                // Comprobación directa contra Supabase para evitar fallos de caché
+                val uid = SupabaseConfig.client.auth.currentUserOrNull()?.id
+                if (uid != null) {
+                    when {
+                        profileService.fetchCaretakerByUid(uid) != null -> UserRole.CUIDADOR
+                        profileService.fetchPatientByUid(uid) != null -> UserRole.PACIENTE
+                        else -> null
+                    }
+                } else null
+            }.getOrNull()
+
+            if (dbRole != null) return dbRole
+            
+            // Si es el primer o segundo intento y no hay rol, esperamos un poco (carrera en registro)
+            if (attempt < 2) delay(1000)
+        }
+        return null
+    }
+
+    /** Guarda en disco la sesión local con el rol indicado (persistencia). */
+    fun persistSession(role: UserRole) {
+        viewModelScope.launch { store.saveSession(role) }
     }
 
     /** Resetea el estado tras navegar (evita re-disparar al volver al login). */
