@@ -9,7 +9,7 @@ data class Patient(
     val uid: String,        // UID de Supabase (UUID)
     val name: String,
     val email: String,
-    @SerialName("fcm_token") val fcmToken: String,
+    @SerialName("fcm_token") val fcmToken: String? = null,
     val age: Int,
     @SerialName("blood_group") val bloodGroup: String,
     val allergies: String,
@@ -25,7 +25,7 @@ data class Caretaker(
     val uid: String,        // UID de Supabase (UUID)
     val name: String,
     val email: String,
-    @SerialName("fcm_token") val fcmToken: String,
+    @SerialName("fcm_token") val fcmToken: String? = null,
     @SerialName("created_at") val createdAt: String,
     @SerialName("profile_pic") val profilePic: String? = null
 )
