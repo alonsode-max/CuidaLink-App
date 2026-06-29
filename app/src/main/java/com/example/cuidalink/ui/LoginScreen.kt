@@ -11,16 +11,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.example.cuidalink.viewmodel.AuthState
 import com.example.cuidalink.viewmodel.LoginViewModel
-import com.example.cuidalink.viewmodel.SessionViewModel
-import com.example.cuidalink.viewmodel.LoginState
 
+/** Grupos sanguíneos estándar para el selector del registro. */
+private val BLOOD_GROUPS = listOf("O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-")
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LoginScreen(
-    viewModel: LoginViewModel,
-    sessionViewModel: SessionViewModel
-) {
+fun LoginScreen(viewModel: LoginViewModel) {
     var isRegisterMode by remember { mutableStateOf(false) }
+    var bloodGroupExpanded by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     
@@ -35,11 +36,8 @@ fun LoginScreen(
     var weight by remember { mutableStateOf("") }
     var height by remember { mutableStateOf("") }
 
-    val sessionLoginState by sessionViewModel.loginState.collectAsState()
+    val authState by viewModel.authState.collectAsState()
     val scrollState = rememberScrollState()
-
-    val isLoading = sessionLoginState is LoginState.Loading
-    val errorMsg = (sessionLoginState as? LoginState.Error)?.message
 
     Column(
         modifier = Modifier
@@ -85,7 +83,7 @@ fun LoginScreen(
 
             OutlinedTextField(
                 value = name,
-                onValueChange = { name = it; sessionViewModel.consumeLogin() },
+                onValueChange = { name = it },
                 label = { Text("Nombre completo") },
                 modifier = Modifier.fillMaxWidth()
             )
@@ -94,7 +92,7 @@ fun LoginScreen(
 
         OutlinedTextField(
             value = email,
-            onValueChange = { email = it; sessionViewModel.consumeLogin() },
+            onValueChange = { email = it },
             label = { Text("Correo electrónico") },
             modifier = Modifier.fillMaxWidth()
         )
@@ -102,7 +100,7 @@ fun LoginScreen(
 
         OutlinedTextField(
             value = password,
-            onValueChange = { password = it; sessionViewModel.consumeLogin() },
+            onValueChange = { password = it },
             label = { Text("Contraseña") },
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth()
@@ -112,21 +110,48 @@ fun LoginScreen(
         if (isRegisterMode && isPatient) {
             OutlinedTextField(
                 value = age,
-                onValueChange = { age = it; sessionViewModel.consumeLogin() },
+                onValueChange = { age = it },
                 label = { Text("Edad") },
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(8.dp))
-            OutlinedTextField(
-                value = bloodGroup,
-                onValueChange = { bloodGroup = it; sessionViewModel.consumeLogin() },
-                label = { Text("Grupo sanguíneo") },
+            ExposedDropdownMenuBox(
+                expanded = bloodGroupExpanded,
+                onExpandedChange = { bloodGroupExpanded = !bloodGroupExpanded },
                 modifier = Modifier.fillMaxWidth()
-            )
+            ) {
+                OutlinedTextField(
+                    value = bloodGroup,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Grupo sanguíneo") },
+                    placeholder = { Text("Selecciona") },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = bloodGroupExpanded)
+                    },
+                    modifier = Modifier
+                        .menuAnchor()
+                        .fillMaxWidth()
+                )
+                ExposedDropdownMenu(
+                    expanded = bloodGroupExpanded,
+                    onDismissRequest = { bloodGroupExpanded = false }
+                ) {
+                    BLOOD_GROUPS.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(option) },
+                            onClick = {
+                                bloodGroup = option
+                                bloodGroupExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
                 value = allergies,
-                onValueChange = { allergies = it; sessionViewModel.consumeLogin() },
+                onValueChange = { allergies = it },
                 label = { Text("Alergias") },
                 modifier = Modifier.fillMaxWidth()
             )
@@ -134,14 +159,14 @@ fun LoginScreen(
             Row(modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
                     value = weight,
-                    onValueChange = { weight = it; sessionViewModel.consumeLogin() },
+                    onValueChange = { weight = it },
                     label = { Text("Peso (kg)") },
                     modifier = Modifier.weight(1f)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 OutlinedTextField(
                     value = height,
-                    onValueChange = { height = it; sessionViewModel.consumeLogin() },
+                    onValueChange = { height = it },
                     label = { Text("Altura (cm)") },
                     modifier = Modifier.weight(1f)
                 )
@@ -149,14 +174,14 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        if (isLoading) {
+        if (authState is AuthState.Loading) {
             CircularProgressIndicator()
         } else {
             Button(
                 onClick = {
                     if (isRegisterMode) {
                         if (isPatient) {
-                            sessionViewModel.signUpPatient(
+                            viewModel.signUpPatient(
                                 email = email,
                                 pass = password,
                                 name = name,
@@ -167,10 +192,10 @@ fun LoginScreen(
                                 height = height.toFloatOrNull() ?: 0f
                             )
                         } else {
-                            sessionViewModel.signUpCaretaker(email, password, name)
+                            viewModel.signUpCaretaker(email, password, name)
                         }
                     } else {
-                        sessionViewModel.login(email, password)
+                        viewModel.login(email, password)
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
@@ -179,20 +204,25 @@ fun LoginScreen(
             }
             
             TextButton(
-                onClick = { 
-                    isRegisterMode = !isRegisterMode 
-                    sessionViewModel.consumeLogin()
-                },
+                onClick = { isRegisterMode = !isRegisterMode },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(if (isRegisterMode) "¿Ya tienes cuenta? Inicia sesión" else "¿No tienes cuenta? Regístrate")
             }
         }
 
-        errorMsg?.let {
+        if (authState is AuthState.Error) {
             Text(
-                text = it,
+                text = (authState as AuthState.Error).message,
                 color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
+
+        if (authState is AuthState.Success) {
+            Text(
+                text = (authState as AuthState.Success).message,
+                color = Color(0xFF4CAF50),
                 modifier = Modifier.padding(top = 8.dp)
             )
         }
