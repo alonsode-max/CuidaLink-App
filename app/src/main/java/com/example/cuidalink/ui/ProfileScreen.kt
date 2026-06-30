@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -32,6 +33,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -74,6 +76,7 @@ fun ProfileScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
     onOpenContacts: () -> Unit = {},
+    onOpenLinking: () -> Unit = {},
     viewModel: PatientProfileViewModel = viewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -96,7 +99,8 @@ fun ProfileScreen(
             )
             is ProfileUiState.Success -> ProfileContent(
                 data = current.data,
-                onOpenContacts = onOpenContacts
+                onOpenContacts = onOpenContacts,
+                onOpenLinking = onOpenLinking
             )
         }
         Spacer(modifier = Modifier.height(8.dp))
@@ -104,8 +108,12 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun ProfileContent(data: PatientProfileUi, onOpenContacts: () -> Unit) {
-    ProfileIdentity(name = data.name, code = data.email ?: "")
+private fun ProfileContent(
+    data: PatientProfileUi, 
+    onOpenContacts: () -> Unit,
+    onOpenLinking: () -> Unit
+) {
+    ProfileIdentity(name = data.name, subtitle = data.email ?: "")
     StatsCardWithPhoto(
         name = data.name,
         age = data.age?.toString() ?: FALLBACK,
@@ -116,11 +124,80 @@ private fun ProfileContent(data: PatientProfileUi, onOpenContacts: () -> Unit) {
         weight = data.weightKg?.let { "${formatNumber(it)} kg" } ?: FALLBACK,
         height = data.heightM?.let { "${formatNumber(it)} m" } ?: FALLBACK
     )
-    SupportNetworkCard(
-        doctorName = data.doctorName ?: FALLBACK,
-        doctorPhone = data.doctorPhone
+    
+    CaretakerInfoCard(
+        isLinked = data.isLinked,
+        name = data.caretakerName,
+        email = data.caretakerEmail,
+        onOpenLinking = onOpenLinking
     )
+
     ContactsButton(onOpenContacts = onOpenContacts)
+}
+
+@Composable
+private fun CaretakerInfoCard(
+    isLinked: Boolean,
+    name: String?,
+    email: String?,
+    onOpenLinking: () -> Unit
+) {
+    BentoCard(title = "Mi Cuidador") {
+        if (isLinked) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(CuidaGreenSurface),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        tint = CuidaGreenDark,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = name ?: "Cuidador",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = CuidaTextPrimary
+                    )
+                    Text(
+                        text = email ?: FALLBACK,
+                        fontSize = 14.sp,
+                        color = CuidaTextSecondary
+                    )
+                }
+            }
+        } else {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "No tienes un cuidador vinculado. Por favor, vincula uno.",
+                    fontSize = 15.sp,
+                    color = CuidaTextSecondary,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                Button(
+                    onClick = onOpenLinking,
+                    colors = ButtonDefaults.buttonColors(containerColor = CuidaGreen),
+                    shape = RoundedCornerShape(percent = 50)
+                ) {
+                    Icon(Icons.Default.Link, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Vincular ahora")
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -169,7 +246,7 @@ private fun ProfileTopBar(onBack: () -> Unit) {
 }
 
 @Composable
-private fun ProfileIdentity(name: String, code: String) {
+private fun ProfileIdentity(name: String, subtitle: String) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -182,9 +259,9 @@ private fun ProfileIdentity(name: String, code: String) {
             fontWeight = FontWeight.ExtraBold,
             color = CuidaTextPrimary
         )
-        if (code.isNotBlank()) {
+        if (subtitle.isNotBlank()) {
             Text(
-                text = code,
+                text = subtitle,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
                 color = CuidaTextSecondary
@@ -387,64 +464,6 @@ private fun MeasureItem(label: String, value: String, modifier: Modifier = Modif
             fontWeight = FontWeight.ExtraBold,
             color = CuidaTextPrimary
         )
-    }
-}
-
-@Composable
-private fun SupportNetworkCard(doctorName: String, doctorPhone: String?) {
-    val context = LocalContext.current
-
-    BentoCard(title = "Red de Apoyo") {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(CuidaGreenSurface),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = HugeIcons.Stethoscope,
-                    contentDescription = null,
-                    tint = CuidaGreenDark,
-                    modifier = Modifier.size(26.dp)
-                )
-            }
-            Spacer(modifier = Modifier.width(14.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = doctorName,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = CuidaTextPrimary
-                )
-                Text(
-                    text = doctorPhone ?: FALLBACK,
-                    fontSize = 14.sp,
-                    color = CuidaTextSecondary
-                )
-            }
-            if (!doctorPhone.isNullOrBlank()) {
-                IconButton(
-                    onClick = {
-                        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$doctorPhone"))
-                        context.startActivity(intent)
-                    },
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(CuidaGreen)
-                        .semantics { contentDescription = "Llamar a $doctorName" }
-                ) {
-                    Icon(
-                        imageVector = HugeIcons.Call,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-            }
-        }
     }
 }
 
