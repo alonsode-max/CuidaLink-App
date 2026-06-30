@@ -62,14 +62,6 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             _loginState.value = LoginState.Loading
 
-            // Fallback demo (frontend sin backend). TODO: quitar al conectar el backend real.
-            val demo = DEMO_ACCOUNTS[email.trim().lowercase()]
-            if (demo != null && demo.password == password) {
-                store.saveSession(demo.role)
-                _loginState.value = LoginState.Success(demo.role)
-                return@launch
-            }
-
             val result = runCatching {
                 SupabaseConfig.client.auth.signInWith(Email) {
                     this.email = email.trim()
@@ -102,7 +94,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * Resuelve el rol del usuario YA autenticado. Primero intenta las cuentas demo;
-     * luego usa el `role` del metadata de Auth; por último cae a mirar en qué tabla 
+     * luego usa el `role` del metadata de Auth; por último cae a mirar en qué tabla
      * vive su uid. Devuelve null si no se puede determinar.
      * Incluye reintentos para evitar carreras en el registro.
      */
@@ -137,7 +129,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             }.getOrNull()
 
             if (dbRole != null) return dbRole
-            
+
             // Si es el primer o segundo intento y no hay rol, esperamos un poco (carrera en registro)
             if (attempt < 2) delay(1000)
         }

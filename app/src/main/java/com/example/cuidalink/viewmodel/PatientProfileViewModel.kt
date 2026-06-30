@@ -41,4 +41,20 @@ class PatientProfileViewModel(
             )
         }
     }
+
+    /** Actualiza la geovalla del paciente. */
+    fun updateGeofence(patientUid: String, lat: Double, lng: Double, radius: Float) {
+        viewModelScope.launch {
+            // Nota: Podríamos añadir un estado de carga aquí si fuera necesario
+            repository.updateGeofence(patientUid, lat, lng, radius)
+            loadPatient(patientUid) // Recargar para ver los cambios
+        }
+    }
+
+    /** Solicita la ubicación actual del paciente. */
+    fun requestLocation(patientUid: String) {
+        viewModelScope.launch {
+            repository.requestPatientLocation(patientUid)
+        }
+    }
 }

@@ -234,15 +234,15 @@ class MainActivity : ComponentActivity() {
                                 val actualRole = sessionViewModel.resolveCurrentRole()
                                 if (actualRole != null) {
                                     sessionViewModel.persistSession(actualRole)
-                                    
+
                                     // Verificar vinculación para redirigir si es necesario
                                     val isLinked = when (actualRole) {
                                         UserRole.PACIENTE -> sessionViewModel.isPatientLinked()
                                         UserRole.CUIDADOR -> sessionViewModel.isCaretakerLinked()
                                     }
-                                    
+
                                     val currentRoute = navController.currentBackStackEntry?.destination?.route
-                                    
+
                                     if (!isLinked) {
                                         val target = if (actualRole == UserRole.CUIDADOR) "cuidador_vincular" else "paciente_codigo"
                                         // Redirigir si no estamos en la pantalla de vinculación correcta ni ya vinculados

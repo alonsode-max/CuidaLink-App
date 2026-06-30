@@ -13,9 +13,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -26,6 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -44,13 +53,13 @@ import com.example.cuidalink.viewmodel.CaregiverProfileViewModel
 import com.example.cuidalink.viewmodel.ProfileUiState
 
 private const val FALLBACK = "—"
-private const val DEFAULT_ROLE = "Cuidador/a principal"
 
 /** Ficha del cuidador (su propio perfil) alimentada desde el backend. */
 @Composable
 fun CaregiverProfileScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
+    onOpenLinking: () -> Unit = {},
     viewModel: CaregiverProfileViewModel = viewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -79,34 +88,55 @@ fun CaregiverProfileScreen(
                     message = current.message,
                     onRetry = { viewModel.loadCurrentCaregiver() }
                 )
-                is ProfileUiState.Success -> CaregiverProfileContent(current.data)
+                is ProfileUiState.Success -> CaregiverProfileContent(
+                    data = current.data,
+                    onOpenLinking = onOpenLinking
+                )
             }
         }
     }
 }
 
 @Composable
-private fun CaregiverProfileContent(data: CaregiverProfileUi) {
+private fun CaregiverProfileContent(data: CaregiverProfileUi, onOpenLinking: () -> Unit) {
     IdentityHeader(
         name = data.name,
-        subtitle = data.relationship ?: DEFAULT_ROLE,
+        subtitle = "Cuidador",
         initials = initialsOf(data.name)
     )
 
     InfoCard(title = "Datos personales") {
-        InfoRow(label = "Parentesco", value = data.relationship ?: FALLBACK)
-        RowDivider()
-        InfoRow(label = "Teléfono", value = data.phone ?: FALLBACK)
-        RowDivider()
         InfoRow(label = "Correo", value = data.email ?: FALLBACK)
     }
 
     InfoCard(title = "Paciente a cargo") {
-        InfoRow(label = "Nombre", value = data.patientName ?: FALLBACK)
-        RowDivider()
-        InfoRow(label = "Relación", value = data.patientRelation ?: FALLBACK)
-        RowDivider()
-        InfoRow(label = "Dispositivo", value = data.patientDeviceId ?: FALLBACK)
+        if (data.isLinked) {
+            InfoRow(label = "Nombre", value = data.patientName ?: FALLBACK)
+            RowDivider()
+            InfoRow(label = "Correo", value = data.patientEmail ?: FALLBACK)
+        } else {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "No tienes un paciente vinculado. Por favor, vincula uno.",
+                    fontSize = 15.sp,
+                    color = CuidaTextSecondary,
+                    textAlign = TextAlign.Center
+                )
+                Button(
+                    onClick = onOpenLinking,
+                    colors = ButtonDefaults.buttonColors(containerColor = CuidaGreen),
+                    shape = RoundedCornerShape(percent = 50)
+                ) {
+                    Icon(Icons.Default.Link, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Vincular ahora")
+                }
+            }
+        }
     }
 }
 

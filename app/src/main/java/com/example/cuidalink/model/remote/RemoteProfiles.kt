@@ -3,7 +3,7 @@ package com.example.cuidalink.model.remote
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-/** DTO que refleja la tabla `patients` del backend Supabase del compañero. */
+/** DTO que refleja la tabla `patients` del backend Supabase. */
 @Serializable
 data class Patient(
     val id: Long? = null,
@@ -19,14 +19,20 @@ data class Patient(
     /** Código único de 6 dígitos para vincular cuidadores. */
     val code: String? = null,
     @SerialName("created_at") val createdAt: String? = null,
-    @SerialName("profile_pic") val profilePic: String? = null
+    @SerialName("profile_pic") val profilePic: String? = null,
+    
+    // Ubicación y geovalla
+    @SerialName("patient_lat") val patientLat: Double? = null,
+    @SerialName("patient_lng") val patientLng: Double? = null,
+    @SerialName("geofence_lat") val geofenceLat: Double? = null,
+    @SerialName("geofence_lng") val geofenceLng: Double? = null,
+    @SerialName("geofence_radius") val geofenceRadius: Float? = null,
+    
+    // Campo para solicitar ubicación (ping)
+    @SerialName("location_request_trigger") val locationRequestTrigger: String? = null
 )
 
-/**
- * DTO de la tabla `vinculations`: une un paciente con un cuidador.
- *
- * `patientId`/`caretakerId` referencian el `id` (PK) de cada tabla.
- */
+/** DTO de la tabla `vinculations`. */
 @Serializable
 data class Vinculation(
     val id: Long? = null,
@@ -47,7 +53,7 @@ data class VinculationInsert(
     @SerialName("caretaker_id") val caretakerId: Long
 )
 
-/** DTO que refleja la tabla `caretakers` del backend Supabase del compañero. */
+/** DTO que refleja la tabla `caretakers` del backend Supabase. */
 @Serializable
 data class Caretaker(
     val id: Long? = null,
