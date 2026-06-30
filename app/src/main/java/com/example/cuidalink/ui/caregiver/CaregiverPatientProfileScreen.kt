@@ -16,10 +16,21 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.cuidalink.model.ui.PatientProfileUi
+import com.example.cuidalink.ui.components.OsmMapView
 import com.example.cuidalink.ui.components.ProfileErrorView
 import com.example.cuidalink.ui.components.ShimmerBox
 import com.example.cuidalink.ui.theme.CuidaBorderLight
@@ -42,6 +54,7 @@ import com.example.cuidalink.ui.theme.CuidaTextSecondary
 import com.example.cuidalink.ui.theme.Urbanist
 import com.example.cuidalink.viewmodel.PatientProfileViewModel
 import com.example.cuidalink.viewmodel.ProfileUiState
+import org.osmdroid.util.GeoPoint
 
 private const val FALLBACK = "—"
 
@@ -78,44 +91,126 @@ fun CaregiverPatientProfileScreen(
                     message = current.message,
                     onRetry = { viewModel.loadCurrentPatient() }
                 )
-                is ProfileUiState.Success -> PatientProfileContent(current.data)
+                is ProfileUiState.Success -> PatientProfileContent(current.data, viewModel)
             }
         }
     }
 }
 
 @Composable
-private fun PatientProfileContent(data: PatientProfileUi) {
+private fun PatientProfileContent(data: PatientProfileUi, viewModel: PatientProfileViewModel) {
+    var isSettingGeofence by remember { mutableStateOf(false) }
+    var selectedGeofencePos by remember { 
+        mutableStateOf<GeoPoint?>(
+            if (data.geofenceLat != null && data.geofenceLng != null) 
+                GeoPoint(data.geofenceLat, data.geofenceLng) 
+            else null
+        ) 
+    }
+    var geofenceRadius by remember { mutableFloatStateOf(data.geofenceRadius ?: 100f) }
+
     IdentityHeader(
         name = data.name,
-        condition = conditionLabel(data),
+        condition = "Paciente",
         initials = initialsOf(data.name)
     )
+
+    InfoCard(title = "Ubicación en tiempo real") {
+        Box(modifier = Modifier
+            .fillMaxWidth()
+            .height(300.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .border(1.dp, CuidaBorderLight, RoundedCornerShape(16.dp))
+        ) {
+            val patientLoc = data.patientLat?.let { lat -> data.patientLng?.let { lng -> GeoPoint(lat, lng) } }
+            OsmMapView(
+                modifier = Modifier.fillMaxSize(),
+                patientLocation = patientLoc,
+                geofenceLocation = selectedGeofencePos,
+                geofenceRadius = geofenceRadius,
+                onMapClick = { if (isSettingGeofence) selectedGeofencePos = it }
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (isSettingGeofence) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Radio de la zona: ${geofenceRadius.toInt()} metros",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = CuidaTextPrimary
+                )
+                Slider(
+                    value = geofenceRadius,
+                    onValueChange = { geofenceRadius = it },
+                    valueRange = 50f..1000f,
+                    steps = 19
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            selectedGeofencePos?.let {
+                                viewModel.updateGeofence(data.uid, it.latitude, it.longitude, geofenceRadius)
+                                isSettingGeofence = false
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = CuidaGreen)
+                    ) {
+                        Text("Guardar Zona", color = Color.White)
+                    }
+                    Button(
+                        onClick = { isSettingGeofence = false },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.LightGray)
+                    ) {
+                        Text("Cancelar", color = Color.Black)
+                    }
+                }
+            }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { isSettingGeofence = true },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = CuidaGreenSurfaceHover),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.Security, contentDescription = null, tint = CuidaGreenDark)
+                    Spacer(modifier = Modifier.size(8.dp))
+                    Text("Zona de seguridad", color = CuidaGreenDark, fontSize = 13.sp)
+                }
+                
+                Button(
+                    onClick = { viewModel.requestLocation(data.uid) },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = CuidaGreen),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.MyLocation, contentDescription = null, tint = Color.White)
+                    Spacer(modifier = Modifier.size(8.dp))
+                    Text("Solicitar ubicación", color = Color.White, fontSize = 13.sp)
+                }
+            }
+        }
+    }
 
     InfoCard(title = "Datos personales") {
         InfoRow(label = "Edad", value = data.age?.let { "$it años" } ?: FALLBACK)
         RowDivider()
         InfoRow(label = "Tipo de sangre", value = data.bloodGroup ?: FALLBACK)
         RowDivider()
-        InfoRow(label = "Dirección", value = data.address ?: FALLBACK)
+        InfoRow(label = "Correo", value = data.email ?: FALLBACK)
     }
 
-    InfoCard(title = "Condición médica") {
-        InfoRow(label = "Diagnóstico", value = data.diagnosis ?: FALLBACK)
+    InfoCard(title = "Información Vital") {
+        InfoRow(label = "Alergias", value = data.allergies ?: "Sin alergias registradas")
         RowDivider()
-        InfoRow(label = "Etapa", value = data.stage ?: FALLBACK)
+        InfoRow(label = "Peso", value = data.weightKg?.let { "$it kg" } ?: FALLBACK)
         RowDivider()
-        InfoRow(label = "Alergias", value = data.allergies ?: FALLBACK)
-        RowDivider()
-        InfoRow(label = "Medicación", value = data.medication ?: FALLBACK)
-    }
-
-    InfoCard(title = "Contacto de emergencia") {
-        InfoRow(label = "Nombre", value = data.emergencyContactName ?: FALLBACK)
-        RowDivider()
-        InfoRow(label = "Parentesco", value = data.emergencyContactRelation ?: FALLBACK)
-        RowDivider()
-        InfoRow(label = "Teléfono", value = data.emergencyContactPhone ?: FALLBACK)
+        InfoRow(label = "Altura", value = data.heightM?.let { "$it m" } ?: FALLBACK)
     }
 }
 
@@ -131,7 +226,7 @@ private fun PatientProfileLoading() {
         ShimmerBox(modifier = Modifier.size(width = 140.dp, height = 16.dp))
     }
     Spacer(modifier = Modifier.height(4.dp))
-    repeat(3) {
+    repeat(2) {
         ShimmerBox(
             modifier = Modifier
                 .fillMaxWidth()
@@ -237,15 +332,6 @@ private fun RowDivider() {
             .height(1.dp)
             .background(CuidaBorderLight)
     )
-}
-
-/** Construye el subtítulo de condición (diagnóstico · etapa) con fallback. */
-private fun conditionLabel(data: PatientProfileUi): String {
-    val parts = listOfNotNull(
-        data.diagnosis,
-        data.stage?.let { "Etapa $it" }
-    )
-    return if (parts.isEmpty()) "Paciente" else parts.joinToString(" · ")
 }
 
 /** Iniciales (hasta 2) a partir del nombre, para el avatar. */

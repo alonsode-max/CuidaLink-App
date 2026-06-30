@@ -22,4 +22,13 @@ interface ProfileRepository {
 
     /** Perfil de un cuidador concreto por su `uid`. */
     suspend fun getCaregiverProfile(uid: String): Result<CaregiverProfileUi>
+
+    /** Actualiza la geovalla del paciente. */
+    suspend fun updateGeofence(patientUid: String, lat: Double, lng: Double, radius: Float): Result<Unit>
+    
+    /** Actualiza la ubicación del paciente. */
+    suspend fun updatePatientLocation(patientUid: String, lat: Double, lng: Double): Result<Unit>
+
+    /** Solicita la ubicación del paciente (vía flag en DB o FCM). */
+    suspend fun requestPatientLocation(patientUid: String): Result<Unit>
 }
