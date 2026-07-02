@@ -30,6 +30,15 @@ interface ProfileRepository {
 
     /** Actualiza la geovalla del paciente. */
     suspend fun updateGeofence(patientUid: String, lat: Double, lng: Double, radius: Float): Result<Unit>
+
+    /** Borra la geovalla del paciente (lo deja sin zona segura configurada). */
+    suspend fun clearGeofence(patientUid: String): Result<Unit>
+
+    /** Reemplaza la lista completa de geovallas (zonas seguras) del paciente. */
+    suspend fun setGeofences(
+        patientUid: String,
+        zones: List<com.example.cuidalink.model.remote.GeofenceZone>
+    ): Result<Unit>
     
     /** Actualiza la ubicación del paciente. */
     suspend fun updatePatientLocation(patientUid: String, lat: Double, lng: Double): Result<Unit>
@@ -45,4 +54,7 @@ interface ProfileRepository {
 
     /** Suma minutos jugados y fija la última actividad del paciente. */
     suspend fun addGameActivity(patientUid: String, minutesToAdd: Int, activity: String): Result<Unit>
+
+    /** Sube la foto de perfil del usuario actual y devuelve la URL pública guardada. */
+    suspend fun uploadProfilePhoto(bytes: ByteArray): Result<String>
 }

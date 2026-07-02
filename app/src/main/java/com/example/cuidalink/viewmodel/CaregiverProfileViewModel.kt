@@ -48,6 +48,13 @@ class CaregiverProfileViewModel(
         }
     }
 
+    /** Sube una nueva foto de perfil del cuidador y recarga para mostrarla. */
+    fun uploadPhoto(bytes: ByteArray) {
+        viewModelScope.launch {
+            repository.uploadProfilePhoto(bytes).onSuccess { loadCurrentCaregiver() }
+        }
+    }
+
     /**
      * ¿El paciente está fuera de su zona segura? Necesita ubicación + geovalla + radio.
      * Devuelve false si falta cualquiera de los datos (no podemos afirmar que salió).
@@ -55,12 +62,16 @@ class CaregiverProfileViewModel(
     private fun isOutsideZone(patient: Patient): Boolean {
         val lat = patient.patientLat ?: return false
         val lng = patient.patientLng ?: return false
-        val zoneLat = patient.geofenceLat ?: return false
-        val zoneLng = patient.geofenceLng ?: return false
-        val radius = patient.geofenceRadius ?: return false
-        val result = FloatArray(1)
-        Location.distanceBetween(lat, lng, zoneLat, zoneLng, result)
-        return result[0] > radius
+        val zones = patient.geofences.filter { it.radius > 0f }
+        // Sin zonas configuradas no podemos afirmar que salió.
+        if (zones.isEmpty()) return false
+        // Está fuera solo si NO está dentro de ninguna de sus zonas seguras.
+        val insideAny = zones.any { zone ->
+            val result = FloatArray(1)
+            Location.distanceBetween(lat, lng, zone.lat, zone.lng, result)
+            result[0] <= zone.radius
+        }
+        return !insideAny
     }
 
     /** Escucha los cambios del paciente por websockets y refleja su ubicación en el estado. */
@@ -82,7 +93,8 @@ class CaregiverProfileViewModel(
                             lastActivity = patient.lastActivity,
                             geofenceLat = patient.geofenceLat,
                             geofenceLng = patient.geofenceLng,
-                            geofenceRadius = patient.geofenceRadius
+                            geofenceRadius = patient.geofenceRadius,
+                            hasSafeZone = patient.geofences.isNotEmpty()
                         )
                     )
                     _outsideZone.value = isOutsideZone(patient)

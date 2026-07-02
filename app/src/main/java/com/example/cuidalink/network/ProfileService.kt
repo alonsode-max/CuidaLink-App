@@ -10,6 +10,7 @@ import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.query.filter.FilterOperator
+import io.github.jan.supabase.storage.storage
 import io.github.jan.supabase.realtime.PostgresAction
 import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.realtime.decodeRecord
@@ -19,6 +20,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onStart
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /**
  * Cliente de API contra las tablas Postgrest del backend (`patients`, `caretakers`).
@@ -117,6 +121,26 @@ class ProfileService(
         }
     }
 
+    /** Reemplaza la lista completa de geovallas del paciente (array JSON). */
+    suspend fun setGeofences(patientUid: String, zones: List<com.example.cuidalink.model.remote.GeofenceZone>) {
+        client.from(TABLE_PATIENTS).update({ set("geofences", zones) }) {
+            filter { eq(COLUMN_UID, patientUid) }
+        }
+    }
+
+    /** Borra la geovalla del paciente (deja el paciente sin zona segura configurada). */
+    suspend fun clearGeofence(patientUid: String) {
+        client.from(TABLE_PATIENTS).update(
+            buildJsonObject {
+                put("geofence_lat", JsonNull)
+                put("geofence_lng", JsonNull)
+                put("geofence_radius", JsonNull)
+            }
+        ) {
+            filter { eq(COLUMN_UID, patientUid) }
+        }
+    }
+
     /** Actualiza la ubicación del paciente. */
     suspend fun updatePatientLocation(patientUid: String, lat: Double, lng: Double) {
         client.from(TABLE_PATIENTS).update(
@@ -127,6 +151,29 @@ class ProfileService(
         ) {
             filter { eq(COLUMN_UID, patientUid) }
         }
+    }
+
+    /**
+     * Sube la foto de perfil del usuario autenticado al bucket [BUCKET_AVATARS] y guarda
+     * su URL pública en la columna `profile_pic` de su tabla (paciente o cuidador).
+     * Devuelve la URL guardada, o null si no hay sesión.
+     *
+     * El nombre del archivo es el uid (upsert), y añadimos `?v=<ms>` a la URL para que
+     * Coil no reutilice la imagen cacheada tras reemplazarla.
+     */
+    suspend fun uploadProfilePhoto(bytes: ByteArray): String? {
+        val uid = currentUid() ?: return null
+        val path = "$uid.jpg"
+        val bucket = client.storage.from(BUCKET_AVATARS)
+        bucket.upload(path, bytes) { upsert = true }
+        val url = bucket.publicUrl(path) + "?v=${System.currentTimeMillis()}"
+
+        // La sesión es de un paciente o de un cuidador: actualiza la fila que exista.
+        val table = if (fetchPatientByUid(uid) != null) TABLE_PATIENTS else TABLE_CARETAKERS
+        client.from(table).update({ set("profile_pic", url) }) {
+            filter { eq(COLUMN_UID, uid) }
+        }
+        return url
     }
 
     /** Inserta un punto en el historial de ubicaciones del paciente. */
@@ -215,6 +262,7 @@ class ProfileService(
         const val TABLE_CARETAKERS = "caretakers"
         const val TABLE_VINCULATIONS = "vinculations"
         const val TABLE_LOCATION_HISTORY = "location_history"
+        const val BUCKET_AVATARS = "avatars"
         const val COLUMN_UID = "uid"
         const val COLUMN_PATIENT_ID = "patient_id"
         const val COLUMN_CARETAKER_ID = "caretaker_id"

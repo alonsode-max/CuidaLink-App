@@ -56,10 +56,36 @@ class PatientProfileViewModel(
         }
     }
 
+    /** Borra la geovalla del paciente y recarga para reflejar que ya no hay zona. */
+    fun clearGeofence(patientUid: String) {
+        viewModelScope.launch {
+            repository.clearGeofence(patientUid)
+            loadLinkedPatient()
+        }
+    }
+
+    /** Guarda la lista completa de geovallas del paciente y recarga. */
+    fun saveGeofences(
+        patientUid: String,
+        zones: List<com.example.cuidalink.model.remote.GeofenceZone>
+    ) {
+        viewModelScope.launch {
+            repository.setGeofences(patientUid, zones)
+            loadLinkedPatient()
+        }
+    }
+
     /** Solicita la ubicación actual del paciente. */
     fun requestLocation(patientUid: String) {
         viewModelScope.launch {
             repository.requestPatientLocation(patientUid)
+        }
+    }
+
+    /** Sube una nueva foto de perfil y recarga el perfil para mostrarla. */
+    fun uploadPhoto(bytes: ByteArray) {
+        viewModelScope.launch {
+            repository.uploadProfilePhoto(bytes).onSuccess { loadCurrentPatient() }
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.example.cuidalink.model.ui
 
 import com.example.cuidalink.model.remote.Caretaker
+import com.example.cuidalink.model.remote.GeofenceZone
 import com.example.cuidalink.model.remote.Patient
 
 /**
@@ -21,6 +22,7 @@ data class PatientProfileUi(
     val weightKg: Float?,
     val heightM: Float?,
     val profilePicUrl: String?,
+    val geofences: List<GeofenceZone> = emptyList(),
     val address: String? = null,
     val diagnosis: String? = null,
     val stage: String? = null,
@@ -50,6 +52,7 @@ data class CaregiverProfileUi(
     val name: String,
     val email: String?,
     val profilePicUrl: String?,
+    val hasSafeZone: Boolean = false,
     val relationship: String? = null,
     val phone: String? = null,
     val patientId: Long? = null,
@@ -82,6 +85,7 @@ fun Patient.toUi(caretaker: Caretaker? = null): PatientProfileUi = PatientProfil
     weightKg = weight,
     heightM = height,
     profilePicUrl = profilePic,
+    geofences = geofences,
     caretakerName = caretaker?.name,
     caretakerEmail = caretaker?.email,
     isLinked = caretaker != null,
@@ -97,6 +101,7 @@ fun Caretaker.toUi(patient: Patient? = null): CaregiverProfileUi = CaregiverProf
     name = name,
     email = email,
     profilePicUrl = profilePic,
+    hasSafeZone = patient?.geofences?.isNotEmpty() == true,
     patientId = patient?.id,
     patientName = patient?.name,
     patientEmail = patient?.email,

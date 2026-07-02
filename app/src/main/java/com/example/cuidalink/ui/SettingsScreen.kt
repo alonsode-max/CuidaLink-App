@@ -55,6 +55,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.cuidalink.ui.theme.*
@@ -156,7 +158,14 @@ fun SettingsScreen(
             )
 
             SettingsSectionTitle(title = "Soporte")
-            SettingsRow(icon = Icons.Filled.Info, label = "Centro de ayuda")
+            SettingsRow(
+                icon = Icons.Filled.Info,
+                label = "Centro de ayuda",
+                onClick = {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://forms.gle/CuidaLinkSupport"))
+                    context.startActivity(intent)
+                }
+            )
 
             SettingsSectionTitle(title = "Vinculación")
             SettingsRow(

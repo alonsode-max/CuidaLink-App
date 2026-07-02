@@ -48,6 +48,8 @@ import com.example.cuidalink.ui.ContactsScreen
 import com.example.cuidalink.ui.CaregiverSosScreen
 import com.example.cuidalink.ui.CaregiverIncomingSosScreen
 import com.example.cuidalink.ui.CaregiverSosWatcher
+import com.example.cuidalink.ui.CaregiverZoneAlertScreen
+import com.example.cuidalink.ui.CaregiverZoneWatcher
 import com.example.cuidalink.ui.DashboardScreen
 import com.example.cuidalink.ui.GameActivityReporter
 import com.example.cuidalink.ui.PatientLocationReporter
@@ -340,6 +342,11 @@ class MainActivity : ComponentActivity() {
                             CaregiverSosWatcher(
                                 onSosReceived = { navController.navigate("cuidador_alerta_paciente") }
                             )
+                            // Global: si el paciente sale de su zona segura, el cuidador recibe
+                            // una alerta con su ubicación en cualquier pantalla (y notificación).
+                            CaregiverZoneWatcher(
+                                onZoneExit = { navController.navigate("cuidador_alerta_zona") }
+                            )
                             NavHost(
                                 navController = navController,
                                 startDestination = startGraph,
@@ -502,6 +509,7 @@ class MainActivity : ComponentActivity() {
                                         CaregiverDashboardScreen(
                                             onOpenHistory = { navController.navigate("cuidador_historial") },
                                             onOpenProfile = { navController.navigate("cuidador_perfil") },
+                                            onConfigureZone = { navigateCaregiverTab("zonas") },
                                             onNeedsLinking = {
                                                 navController.navigate("cuidador_vincular") {
                                                     popUpTo("caregiver_graph") { inclusive = true }
@@ -551,6 +559,10 @@ class MainActivity : ComponentActivity() {
                                     composable("cuidador_alerta_paciente") {
                                         // El paciente activó su SOS: alerta con su ubicación.
                                         CaregiverIncomingSosScreen(onBack = { navController.popBackStack() })
+                                    }
+                                    composable("cuidador_alerta_zona") {
+                                        // El paciente salió de la zona segura: alerta con su ubicación.
+                                        CaregiverZoneAlertScreen(onBack = { navController.popBackStack() })
                                     }
                                 } // fin caregiver_graph
                             }

@@ -45,8 +45,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
+import coil.compose.AsyncImage
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -100,7 +102,8 @@ fun ProfileScreen(
             is ProfileUiState.Success -> ProfileContent(
                 data = current.data,
                 onOpenContacts = onOpenContacts,
-                onOpenLinking = onOpenLinking
+                onOpenLinking = onOpenLinking,
+                onPickPhoto = viewModel::uploadPhoto
             )
         }
         Spacer(modifier = Modifier.height(8.dp))
@@ -109,15 +112,18 @@ fun ProfileScreen(
 
 @Composable
 private fun ProfileContent(
-    data: PatientProfileUi, 
+    data: PatientProfileUi,
     onOpenContacts: () -> Unit,
-    onOpenLinking: () -> Unit
+    onOpenLinking: () -> Unit,
+    onPickPhoto: (ByteArray) -> Unit
 ) {
     ProfileIdentity(name = data.name, subtitle = data.email ?: "")
     StatsCardWithPhoto(
         name = data.name,
         age = data.age?.toString() ?: FALLBACK,
-        bloodType = data.bloodGroup ?: FALLBACK
+        bloodType = data.bloodGroup ?: FALLBACK,
+        photoUrl = data.profilePicUrl,
+        onPickPhoto = onPickPhoto
     )
     VitalInfoCard(
         allergy = data.allergies ?: "Sin alergias registradas",
@@ -274,7 +280,13 @@ private val PHOTO_SIZE = 108.dp
 private val PHOTO_OVERHANG = 50.dp
 
 @Composable
-private fun StatsCardWithPhoto(name: String, age: String, bloodType: String) {
+private fun StatsCardWithPhoto(
+    name: String,
+    age: String,
+    bloodType: String,
+    photoUrl: String?,
+    onPickPhoto: (ByteArray) -> Unit
+) {
     Box(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = Alignment.TopCenter
@@ -311,13 +323,18 @@ private fun StatsCardWithPhoto(name: String, age: String, bloodType: String) {
             )
         }
 
-        ProfilePhotoWithEdit(name = name)
+        ProfilePhotoWithEdit(name = name, photoUrl = photoUrl, onPickPhoto = onPickPhoto)
     }
 }
 
 @Composable
-private fun ProfilePhotoWithEdit(name: String) {
+private fun ProfilePhotoWithEdit(
+    name: String,
+    photoUrl: String?,
+    onPickPhoto: (ByteArray) -> Unit
+) {
     var showMenu by remember { mutableStateOf(false) }
+    val pickImage = rememberImagePicker(onImageBytes = onPickPhoto)
 
     Box(modifier = Modifier.size(PHOTO_SIZE)) {
         Box(
@@ -336,12 +353,21 @@ private fun ProfilePhotoWithEdit(name: String) {
                     .background(CuidaGreenSurface),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = HugeIcons.User,
-                    contentDescription = "Foto de perfil de $name",
-                    tint = CuidaGreen,
-                    modifier = Modifier.size(48.dp)
-                )
+                if (photoUrl != null) {
+                    AsyncImage(
+                        model = photoUrl,
+                        contentDescription = "Foto de perfil de $name",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize().clip(CircleShape)
+                    )
+                } else {
+                    Icon(
+                        imageVector = HugeIcons.User,
+                        contentDescription = "Foto de perfil de $name",
+                        tint = CuidaGreen,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
             }
         }
 
@@ -372,7 +398,10 @@ private fun ProfilePhotoWithEdit(name: String) {
         ) {
             DropdownMenuItem(
                 text = { Text("Editar foto de perfil", fontWeight = FontWeight.SemiBold) },
-                onClick = { showMenu = false },
+                onClick = {
+                    showMenu = false
+                    pickImage()
+                },
                 leadingIcon = {
                     Icon(imageVector = Icons.Filled.Person, contentDescription = null, tint = CuidaGreen)
                 }

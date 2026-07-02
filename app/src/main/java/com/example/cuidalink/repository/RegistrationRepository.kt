@@ -22,11 +22,12 @@ interface RegistrationRepository {
     /** Registra un cuidador con los 3 campos obligatorios. */
     suspend fun registerCaregiver(name: String, email: String, password: String): Result<Unit>
 
-    /** Registra un paciente con los 4 campos obligatorios. */
+    /** Registra un paciente con los campos obligatorios (incluye teléfono de contacto). */
     suspend fun registerPatient(
         name: String,
         email: String,
         age: Int,
+        emergencyPhone: String,
         password: String
     ): Result<Unit>
 }
@@ -49,6 +50,7 @@ class SimulatedRegistrationRepository(
         name: String,
         email: String,
         age: Int,
+        emergencyPhone: String,
         password: String
     ): Result<Unit> = runCatching {
         delay(networkDelayMs)
@@ -88,6 +90,7 @@ class SupabaseRegistrationRepository(
         name: String,
         email: String,
         age: Int,
+        emergencyPhone: String,
         password: String
     ): Result<Unit> = runCatching {
         val uid = signUp(email, password) {
@@ -100,6 +103,7 @@ class SupabaseRegistrationRepository(
             name = name,
             email = email,
             age = age,
+            emergencyPhone = emergencyPhone.ifBlank { null },
             bloodGroup = "",
             allergies = "",
             weight = 0f,

@@ -58,6 +58,15 @@ class ProfileRepositoryImpl(
             service.updateGeofence(patientUid, lat, lng, radius)
         }
 
+    override suspend fun clearGeofence(patientUid: String): Result<Unit> =
+        runCatching { service.clearGeofence(patientUid) }
+
+    override suspend fun setGeofences(
+        patientUid: String,
+        zones: List<com.example.cuidalink.model.remote.GeofenceZone>
+    ): Result<Unit> =
+        runCatching { service.setGeofences(patientUid, zones) }
+
     override suspend fun updatePatientLocation(patientUid: String, lat: Double, lng: Double): Result<Unit> =
         runCatching {
             service.updatePatientLocation(patientUid, lat, lng)
@@ -76,4 +85,10 @@ class ProfileRepositoryImpl(
 
     override suspend fun addGameActivity(patientUid: String, minutesToAdd: Int, activity: String): Result<Unit> =
         runCatching { service.addGameActivity(patientUid, minutesToAdd, activity) }
+
+    override suspend fun uploadProfilePhoto(bytes: ByteArray): Result<String> =
+        runCatching {
+            service.uploadProfilePhoto(bytes)
+                ?: error("No hay una sesión activa para subir la foto")
+        }
 }

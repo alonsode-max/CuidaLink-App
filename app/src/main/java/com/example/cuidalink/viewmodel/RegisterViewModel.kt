@@ -16,6 +16,7 @@ data class RegisterFormState(
     val name: String = "",
     val email: String = "",
     val age: String = "",
+    val emergencyPhone: String = "",
     val password: String = ""
 )
 
@@ -43,6 +44,12 @@ class RegisterViewModel(
     fun onEmailChange(value: String) = _form.update { it.copy(email = value) }
     fun onPasswordChange(value: String) = _form.update { it.copy(password = value) }
 
+    /** El teléfono solo admite dígitos, espacios y '+' (máx. 15 caracteres). */
+    fun onEmergencyPhoneChange(value: String) {
+        val cleaned = value.filter { it.isDigit() || it == '+' || it == ' ' }.take(15)
+        _form.update { it.copy(emergencyPhone = cleaned) }
+    }
+
     /** La edad solo admite dígitos (máx. 3). */
     fun onAgeChange(value: String) {
         val digits = value.filter(Char::isDigit).take(3)
@@ -56,7 +63,9 @@ class RegisterViewModel(
             form.password.isNotBlank()
         return when (form.role) {
             UserRole.CUIDADOR -> baseValid
-            UserRole.PACIENTE -> baseValid && (form.age.toIntOrNull() ?: 0) > 0
+            UserRole.PACIENTE -> baseValid &&
+                (form.age.toIntOrNull() ?: 0) > 0 &&
+                form.emergencyPhone.filter(Char::isDigit).length >= 7
         }
     }
 
@@ -80,6 +89,7 @@ class RegisterViewModel(
                     name = current.name.trim(),
                     email = current.email.trim(),
                     age = current.age.toInt(),
+                    emergencyPhone = current.emergencyPhone.trim(),
                     password = current.password
                 )
             }

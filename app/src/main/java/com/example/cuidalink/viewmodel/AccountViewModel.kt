@@ -16,7 +16,11 @@ class AccountViewModel(
     private val service: ProfileService = ProfileService()
 ) : ViewModel() {
 
-    data class Account(val name: String, val initials: String)
+    data class Account(
+        val name: String,
+        val initials: String,
+        val emergencyPhone: String? = null
+    )
 
     private val _account = MutableStateFlow<Account?>(null)
     val account: StateFlow<Account?> = _account.asStateFlow()
@@ -27,10 +31,10 @@ class AccountViewModel(
 
     fun load() {
         viewModelScope.launch {
-            val name = service.fetchCurrentPatient()?.name
-                ?: service.fetchCurrentCaretaker()?.name
+            val patient = service.fetchCurrentPatient()
+            val name = patient?.name ?: service.fetchCurrentCaretaker()?.name
             if (name != null) {
-                _account.value = Account(name, initialsOf(name))
+                _account.value = Account(name, initialsOf(name), patient?.emergencyPhone)
             }
         }
     }

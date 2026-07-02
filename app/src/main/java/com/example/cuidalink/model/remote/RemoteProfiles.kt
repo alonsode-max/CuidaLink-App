@@ -18,6 +18,8 @@ data class Patient(
     val height: Float? = null,
     /** Código único de 6 dígitos para vincular cuidadores. */
     val code: String? = null,
+    /** Teléfono de contacto/emergencia ("llamar a casa"). */
+    @SerialName("emergency_phone") val emergencyPhone: String? = null,
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("profile_pic") val profilePic: String? = null,
     
@@ -27,6 +29,8 @@ data class Patient(
     @SerialName("geofence_lat") val geofenceLat: Double? = null,
     @SerialName("geofence_lng") val geofenceLng: Double? = null,
     @SerialName("geofence_radius") val geofenceRadius: Float? = null,
+    /** Varias zonas seguras del paciente (array JSON en la fila del paciente). */
+    val geofences: List<GeofenceZone> = emptyList(),
     
     // Campo para solicitar ubicación (ping)
     @SerialName("location_request_trigger") val locationRequestTrigger: String? = null,
@@ -42,6 +46,15 @@ data class Patient(
     @SerialName("steps") val steps: Int? = null,
     @SerialName("minutes_played") val minutesPlayed: Int? = null,
     @SerialName("last_activity") val lastActivity: String? = null
+)
+
+/** Una zona segura (geovalla) del paciente: centro + radio en metros. */
+@Serializable
+data class GeofenceZone(
+    val lat: Double,
+    val lng: Double,
+    val radius: Float,
+    val name: String? = null
 )
 
 /**

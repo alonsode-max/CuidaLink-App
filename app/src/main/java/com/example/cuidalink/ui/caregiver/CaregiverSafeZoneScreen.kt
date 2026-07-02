@@ -22,8 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Cancel
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MyLocation
@@ -68,6 +67,8 @@ import com.example.cuidalink.ui.theme.CuidaSurfaceMuted
 import com.example.cuidalink.ui.theme.CuidaTextPrimary
 import com.example.cuidalink.ui.theme.CuidaTextSecondary
 import com.example.cuidalink.ui.theme.Urbanist
+import com.example.cuidalink.model.remote.GeofenceZone
+import com.example.cuidalink.ui.CircleSpec
 import com.example.cuidalink.ui.OsmMap
 import com.example.cuidalink.ui.rememberOsmMapController
 import com.example.cuidalink.viewmodel.PatientProfileViewModel
@@ -85,8 +86,6 @@ private const val MAX_RADIUS = 5000f
 private const val RESIDENCE_NAME = "Residencia Principal"
 private const val RESIDENCE_ADDRESS = "Calle Mayor 123, Madrid"
 
-private enum class ZoneType { VERDE, ROJA }
-
 /** Gestion de zonas seguras: define el area permitida del paciente. */
 @Composable
 fun CaregiverSafeZoneScreen(
@@ -94,7 +93,6 @@ fun CaregiverSafeZoneScreen(
     onBack: () -> Unit = {},
     viewModel: PatientProfileViewModel = viewModel()
 ) {
-    var zoneType by remember { mutableStateOf(ZoneType.VERDE) }
     var radius by remember { mutableFloatStateOf(500f) }
     var exitAlert by remember { mutableStateOf(true) }
 
@@ -145,21 +143,43 @@ fun CaregiverSafeZoneScreen(
                 color = CuidaTextSecondary
             )
 
-            TopActions(
-                onSave = {
+            val savedZones = data?.geofences ?: emptyList()
+            val extraCircles = savedZones.map {
+                CircleSpec(GeoPoint(it.lat, it.lng), it.radius.toDouble())
+            }
+
+            AddZoneButton(
+                onAdd = {
                     val uid = data?.uid
                     if (uid != null) {
-                        viewModel.updateGeofence(uid, center.latitude, center.longitude, radius)
-                        Toast.makeText(context, "Zona segura guardada", Toast.LENGTH_SHORT).show()
+                        val newZone = GeofenceZone(
+                            lat = center.latitude,
+                            lng = center.longitude,
+                            radius = radius,
+                            name = "Zona ${savedZones.size + 1}"
+                        )
+                        viewModel.saveGeofences(uid, savedZones + newZone)
+                        Toast.makeText(context, "Zona añadida", Toast.LENGTH_SHORT).show()
                     } else {
                         Toast.makeText(context, "No hay paciente vinculado", Toast.LENGTH_SHORT).show()
                     }
                 }
             )
-            ZoneTypeCard(selected = zoneType, onSelect = { zoneType = it })
             RadiusCard(radius = radius, onRadiusChange = { radius = it })
             AlertsCard(exitAlert = exitAlert, onToggle = { exitAlert = it })
-            MapCard(radius = radius, center = center)
+            MapCard(radius = radius, center = center, extraCircles = extraCircles)
+
+            SavedZonesList(
+                zones = savedZones,
+                onDelete = { index ->
+                    val uid = data?.uid
+                    if (uid != null) {
+                        val remaining = savedZones.filterIndexed { i, _ -> i != index }
+                        viewModel.saveGeofences(uid, remaining)
+                        Toast.makeText(context, "Zona eliminada", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            )
         }
     }
 }
@@ -201,69 +221,85 @@ private fun TopActions(onSave: () -> Unit) {
     }
 }
 
+/** Botón verde para añadir la zona en edición (centro del mapa + radio) a la lista. */
 @Composable
-private fun ZoneTypeCard(selected: ZoneType, onSelect: (ZoneType) -> Unit) {
-    SectionCard(title = "Tipo de Zona") {
-        ZoneOption(
-            title = "Zona Verde",
-            subtitle = "Área segura permitida",
-            icon = Icons.Filled.CheckCircle,
-            accent = CuidaGreen,
-            surface = CuidaGreenSurface,
-            isSelected = selected == ZoneType.VERDE,
-            onClick = { onSelect(ZoneType.VERDE) }
+private fun AddZoneButton(onAdd: () -> Unit) {
+    Button(
+        onClick = onAdd,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 52.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = CuidaGreen,
+            contentColor = Color.White
         )
-        Spacer(Modifier.height(12.dp))
-        ZoneOption(
-            title = "Zona Roja",
-            subtitle = "Área peligrosa o prohibida",
-            icon = Icons.Filled.Cancel,
-            accent = CuidaRed,
-            surface = CuidaRedSurface,
-            isSelected = selected == ZoneType.ROJA,
-            onClick = { onSelect(ZoneType.ROJA) }
-        )
+    ) {
+        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text("Añadir zona segura", fontWeight = FontWeight.Bold)
     }
 }
 
+/** Lista de zonas seguras guardadas; cada una con su botón para eliminarla. */
 @Composable
-private fun ZoneOption(
-    title: String,
-    subtitle: String,
-    icon: ImageVector,
-    accent: Color,
-    surface: Color,
-    isSelected: Boolean,
-    onClick: () -> Unit
+private fun SavedZonesList(
+    zones: List<com.example.cuidalink.model.remote.GeofenceZone>,
+    onDelete: (Int) -> Unit
 ) {
-    val shape = RoundedCornerShape(16.dp)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(if (isSelected) surface else CuidaSurfaceMuted)
-            .border(
-                width = if (isSelected) 2.dp else 1.dp,
-                color = if (isSelected) accent else CuidaBorderLight,
-                shape = shape
+    SectionCard(title = "Zonas seguras (${zones.size})") {
+        if (zones.isEmpty()) {
+            Text(
+                text = "Aún no hay zonas. Ajusta el radio y pulsa \"Añadir zona segura\".",
+                fontSize = 14.sp,
+                color = CuidaTextSecondary
             )
-            .clickable(onClick = onClick)
-            .padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(surface),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(24.dp))
+            return@SectionCard
         }
-        Spacer(Modifier.width(14.dp))
-        Column {
-            Text(title, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = CuidaTextPrimary)
-            Text(subtitle, fontSize = 13.sp, color = CuidaTextSecondary)
+        zones.forEachIndexed { index, zone ->
+            if (index > 0) Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(CuidaGreenSurface)
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(Color.White),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Filled.LocationOn, contentDescription = null, tint = CuidaGreen, modifier = Modifier.size(22.dp))
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = zone.name ?: "Zona ${index + 1}",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = CuidaTextPrimary
+                    )
+                    Text(
+                        text = "Radio: ${zone.radius.roundToInt()} m",
+                        fontSize = 13.sp,
+                        color = CuidaTextSecondary
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(CuidaRedSurface)
+                        .clickable { onDelete(index) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Filled.Delete, contentDescription = "Eliminar zona", tint = CuidaRed, modifier = Modifier.size(20.dp))
+                }
+            }
         }
     }
 }
@@ -337,9 +373,9 @@ private fun AlertsCard(exitAlert: Boolean, onToggle: (Boolean) -> Unit) {
     }
 }
 
-// Mapa con el círculo de la zona segura (radio ligado al slider) y controles.
+// Mapa con el círculo de la zona en edición + las zonas ya guardadas, y controles.
 @Composable
-private fun MapCard(radius: Float, center: GeoPoint) {
+private fun MapCard(radius: Float, center: GeoPoint, extraCircles: List<CircleSpec>) {
     val mapController = rememberOsmMapController()
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -356,6 +392,7 @@ private fun MapCard(radius: Float, center: GeoPoint) {
             circleRadiusMeters = radius.toDouble(),
             circleStroke = CuidaGreen,
             circleFill = CuidaGreen.copy(alpha = 0.15f),
+            extraCircles = extraCircles,
             modifier = Modifier.fillMaxSize()
         )
 

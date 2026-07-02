@@ -4,7 +4,9 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.Uri
 import android.os.BatteryManager
+import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -106,6 +108,20 @@ fun DashboardScreen(
 ) {
     val events by calendarViewModel.events.collectAsState()
     val account by accountViewModel.account.collectAsState()
+    val context = LocalContext.current
+    // "Llamar a casa": marca el teléfono de contacto guardado al registrarse.
+    val onCallHome: () -> Unit = {
+        val phone = account?.emergencyPhone?.takeIf { it.isNotBlank() }
+        if (phone != null) {
+            context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")))
+        } else {
+            Toast.makeText(
+                context,
+                "No hay un teléfono de contacto configurado.",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
     // Primer nombre del paciente logueado (p. ej. "Carlos Tumbaco" -> "Carlos").
     val firstName = account?.name
         ?.trim()
@@ -153,7 +169,7 @@ fun DashboardScreen(
             completedCount = completedMedicationCount,
             onOpenCalendar = onOpenCalendar
         )
-            BentoBox(onPlay = onPlay)
+            BentoBox(onPlay = onPlay, onCallHome = onCallHome)
         }
     }
 }
@@ -544,7 +560,7 @@ private fun PendingGauge(
 
 // Rejilla "Bento Box": un Row con dos columnas de igual ancho y misma altura
 @Composable
-private fun BentoBox(onPlay: () -> Unit) {
+private fun BentoBox(onPlay: () -> Unit, onCallHome: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -562,7 +578,8 @@ private fun BentoBox(onPlay: () -> Unit) {
                 modifier = Modifier.weight(0.4f),
                 icon = HugeIcons.User,
                 title = "Llamar",
-                subtitle = "Hablar con casa"
+                subtitle = "Hablar con casa",
+                onClick = onCallHome
             )
             BentoBatteryCard(modifier = Modifier.weight(0.6f))
         }

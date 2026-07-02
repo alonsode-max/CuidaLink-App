@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -89,6 +90,7 @@ fun CaregiverDashboardScreen(
     modifier: Modifier = Modifier,
     onOpenHistory: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
+    onConfigureZone: () -> Unit = {},
     onNeedsLinking: () -> Unit = {},
     viewModel: CaregiverProfileViewModel = viewModel()
 ) {
@@ -154,6 +156,10 @@ fun CaregiverDashboardScreen(
             )
             if (outsideZone) {
                 ZoneExitBanner()
+            }
+            // El aviso sigue saliendo hasta que exista al menos una geovalla.
+            if (isLinked && data?.hasSafeZone != true) {
+                NoZoneConfiguredBanner(onConfigureZone = onConfigureZone)
             }
             ActionButtonsRow(
                 onOpenHistory = onOpenHistory,
@@ -349,6 +355,41 @@ private fun ZoneExitBanner() {
                 text = "El paciente ha salido del área permitida.",
                 fontSize = 13.sp,
                 color = CuidaRed
+            )
+        }
+    }
+}
+
+/** Aviso cuando aún no se ha configurado una zona segura; lleva a la pantalla de zonas. */
+@Composable
+private fun NoZoneConfiguredBanner(onConfigureZone: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(CuidaGreenSurface)
+            .clickable(role = Role.Button, onClick = onConfigureZone)
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Filled.LocationOn,
+            contentDescription = null,
+            tint = CuidaGreenDark,
+            modifier = Modifier.size(22.dp)
+        )
+        Spacer(Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Sin zona segura configurada",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = CuidaGreenDark
+            )
+            Text(
+                text = "Toca aquí para configurar una y recibir avisos si el paciente sale.",
+                fontSize = 13.sp,
+                color = CuidaGreenDark
             )
         }
     }
