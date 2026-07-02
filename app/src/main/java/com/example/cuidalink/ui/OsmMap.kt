@@ -38,6 +38,9 @@ class OsmMapController {
 @Composable
 fun rememberOsmMapController(): OsmMapController = remember { OsmMapController() }
 
+/** Un círculo adicional a dibujar en el mapa (para múltiples zonas seguras). */
+data class CircleSpec(val center: GeoPoint, val radiusMeters: Double)
+
 /** Mapa OpenStreetMap (osmdroid). No requiere API key ni tarjeta. */
 @Composable
 fun OsmMap(
@@ -47,7 +50,8 @@ fun OsmMap(
     controller: OsmMapController? = null,
     circleRadiusMeters: Double? = null,
     circleStroke: Color = Color(0xFF17A34A),
-    circleFill: Color = Color(0x2217A34A)
+    circleFill: Color = Color(0x2217A34A),
+    extraCircles: List<CircleSpec> = emptyList()
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -90,15 +94,19 @@ fun OsmMap(
             controller?.map = view
             // Refresca el círculo de la zona (si lo hay) sin tocar la cámara.
             view.overlays.removeAll { it is Polygon }
-            if (circleRadiusMeters != null && circleRadiusMeters > 0.0) {
+            fun addCircle(c: GeoPoint, radius: Double) {
                 val circle = Polygon().apply {
-                    points = Polygon.pointsAsCircle(center, circleRadiusMeters)
+                    points = Polygon.pointsAsCircle(c, radius)
                     fillPaint.color = circleFill.toArgb()
                     outlinePaint.color = circleStroke.toArgb()
                     outlinePaint.strokeWidth = 6f
                 }
                 view.overlays.add(circle)
             }
+            if (circleRadiusMeters != null && circleRadiusMeters > 0.0) {
+                addCircle(center, circleRadiusMeters)
+            }
+            extraCircles.forEach { if (it.radiusMeters > 0.0) addCircle(it.center, it.radiusMeters) }
             view.invalidate()
         }
     )

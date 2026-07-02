@@ -4,7 +4,9 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.Uri
 import android.os.BatteryManager
+import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -70,14 +72,12 @@ import com.example.cuidalink.ui.theme.CuidaGreenSurface
 import com.example.cuidalink.ui.theme.CuidaTextPrimary
 import com.example.cuidalink.ui.theme.CuidaTextSecondary
 import com.example.cuidalink.ui.theme.Urbanist
+import com.example.cuidalink.viewmodel.AccountViewModel
 import com.example.cuidalink.viewmodel.CalendarViewModel
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
-
-// Datos del paciente de ejemplo; sustituir al integrar backend.
-private const val PATIENT_NAME = "Ernesto"
 
 // Dosis por defecto cuando el evento de medicación no trae descripción
 private const val DEFAULT_DOSE = "1 comprimido"
@@ -102,10 +102,33 @@ private val dailyPhrases = listOf(
 fun DashboardScreen(
     modifier: Modifier = Modifier,
     calendarViewModel: CalendarViewModel = viewModel(),
+    accountViewModel: AccountViewModel = viewModel(),
     onOpenCalendar: () -> Unit = {},
     onPlay: () -> Unit = {}
 ) {
     val events by calendarViewModel.events.collectAsState()
+    val account by accountViewModel.account.collectAsState()
+    val context = LocalContext.current
+    // "Llamar a casa": marca el teléfono de contacto guardado al registrarse.
+    val onCallHome: () -> Unit = {
+        val phone = account?.emergencyPhone?.takeIf { it.isNotBlank() }
+        if (phone != null) {
+            context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")))
+        } else {
+            Toast.makeText(
+                context,
+                "No hay un teléfono de contacto configurado.",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+    // Primer nombre del paciente logueado (p. ej. "Carlos Tumbaco" -> "Carlos").
+    val firstName = account?.name
+        ?.trim()
+        ?.split(Regex("\\s+"))
+        ?.firstOrNull()
+        ?.takeIf { it.isNotEmpty() }
+        ?: ""
     val today = LocalDate.now()
     val now = remember { LocalTime.now() }
 
@@ -127,7 +150,7 @@ fun DashboardScreen(
             .verticalScroll(rememberScrollState())
     ) {
 
-        PatientHeader()
+        PatientHeader(patientName = firstName)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -146,14 +169,14 @@ fun DashboardScreen(
             completedCount = completedMedicationCount,
             onOpenCalendar = onOpenCalendar
         )
-            BentoBox(onPlay = onPlay)
+            BentoBox(onPlay = onPlay, onCallHome = onCallHome)
         }
     }
 }
 
 // Cabecera sólida en verde azulado con esquinas inferiores redondeadas. Texto
 @Composable
-private fun PatientHeader() {
+private fun PatientHeader(patientName: String) {
     var now by remember { mutableStateOf(LocalTime.now()) }
     // Refresca la hora justo al cambiar de minuto.
     LaunchedEffect(Unit) {
@@ -199,7 +222,7 @@ private fun PatientHeader() {
                 // Margen inferior amplio: deja espacio verde bajo las píldoras
                 .padding(top = 24.dp, bottom = 52.dp)
                 .semantics(mergeDescendants = true) {
-                    contentDescription = "$greeting. Hola, $PATIENT_NAME. $dateText"
+                    contentDescription = "$greeting. Hola, $patientName. $dateText"
                 },
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
@@ -237,7 +260,7 @@ private fun PatientHeader() {
                         color = Color.White
                     )
                     Text(
-                        text = PATIENT_NAME,
+                        text = patientName,
                         fontFamily = Urbanist,
                         fontSize = 50.sp,
                         fontWeight = FontWeight.ExtraBold,
@@ -245,7 +268,10 @@ private fun PatientHeader() {
                     )
                 }
                 // Avatar bajado respecto al nombre.
-                ProfileAvatar(modifier = Modifier.offset(y = 44.dp, x = -10.dp).size(100.dp))
+                ProfileAvatar(
+                    patientName = patientName,
+                    modifier = Modifier.offset(y = 44.dp, x = -10.dp).size(100.dp)
+                )
             }
             // Fila 3: fecha en píldora con icono de corazón.
             Row {
@@ -341,7 +367,7 @@ private fun TranslucentPill(content: @Composable () -> Unit) {
 
 // Avatar de perfil para el header (mismas iniciales que en Perfil).
 @Composable
-private fun ProfileAvatar(modifier: Modifier = Modifier) {
+private fun ProfileAvatar(patientName: String, modifier: Modifier = Modifier) {
     // Cuadrada con esquinas redondeadas (en vez de círculo).
     val avatarShape = RoundedCornerShape(24.dp)
     Box(
@@ -350,11 +376,11 @@ private fun ProfileAvatar(modifier: Modifier = Modifier) {
             .clip(avatarShape)
             .background(CuidaGreenSurface)
             .border(3.dp, Color.White, avatarShape)
-            .semantics { contentDescription = "Foto de perfil de $PATIENT_NAME" },
+            .semantics { contentDescription = "Foto de perfil de $patientName" },
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = PATIENT_NAME.take(1).uppercase(),
+            text = patientName.take(1).uppercase(),
             fontFamily = Urbanist,
             fontSize = 28.sp,
             fontWeight = FontWeight.ExtraBold,
@@ -534,7 +560,7 @@ private fun PendingGauge(
 
 // Rejilla "Bento Box": un Row con dos columnas de igual ancho y misma altura
 @Composable
-private fun BentoBox(onPlay: () -> Unit) {
+private fun BentoBox(onPlay: () -> Unit, onCallHome: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -552,7 +578,8 @@ private fun BentoBox(onPlay: () -> Unit) {
                 modifier = Modifier.weight(0.4f),
                 icon = HugeIcons.User,
                 title = "Llamar",
-                subtitle = "Hablar con casa"
+                subtitle = "Hablar con casa",
+                onClick = onCallHome
             )
             BentoBatteryCard(modifier = Modifier.weight(0.6f))
         }
@@ -729,6 +756,8 @@ private fun BatteryGauge(percent: Int) {
 // Tarjeta de pasos: titulo, cifra grande y progreso.
 @Composable
 private fun BentoStepsCard(modifier: Modifier) {
+    val steps = rememberStepCount()
+    val stepsLabel = if (steps >= 1000) "%.1fk".format(steps / 1000f) else steps.toString()
     val shape = RoundedCornerShape(24.dp)
     Column(
         modifier = modifier
@@ -757,7 +786,7 @@ private fun BentoStepsCard(modifier: Modifier) {
             }
             .padding(16.dp)
             .semantics(mergeDescendants = true) {
-                contentDescription = "Tus pasos. 10.6 mil pasos hoy"
+                contentDescription = "Tus pasos. $steps pasos hoy"
             }
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -772,7 +801,7 @@ private fun BentoStepsCard(modifier: Modifier) {
         }
         Spacer(modifier = Modifier.height(10.dp))
         Text(
-            text = "10.6k",
+            text = stepsLabel,
             fontSize = 34.sp,
             fontWeight = FontWeight.ExtraBold,
             color = CuidaTextPrimary

@@ -32,6 +32,11 @@ class PatientProfileViewModel(
         load { repository.getPatientProfile(uid) }
     }
 
+    /** Carga el perfil del paciente VINCULADO al cuidador actual (vista del cuidador). */
+    fun loadLinkedPatient() {
+        load { repository.getLinkedPatientProfile() }
+    }
+
     private fun load(source: suspend () -> Result<PatientProfileUi>) {
         viewModelScope.launch {
             _state.value = ProfileUiState.Loading
@@ -39,6 +44,48 @@ class PatientProfileViewModel(
                 onSuccess = { ProfileUiState.Success(it) },
                 onFailure = { ProfileUiState.Error(it.message ?: "No se pudo cargar el perfil") }
             )
+        }
+    }
+
+    /** Actualiza la geovalla del paciente. */
+    fun updateGeofence(patientUid: String, lat: Double, lng: Double, radius: Float) {
+        viewModelScope.launch {
+            // Nota: Podríamos añadir un estado de carga aquí si fuera necesario
+            repository.updateGeofence(patientUid, lat, lng, radius)
+            loadPatient(patientUid) // Recargar para ver los cambios
+        }
+    }
+
+    /** Borra la geovalla del paciente y recarga para reflejar que ya no hay zona. */
+    fun clearGeofence(patientUid: String) {
+        viewModelScope.launch {
+            repository.clearGeofence(patientUid)
+            loadLinkedPatient()
+        }
+    }
+
+    /** Guarda la lista completa de geovallas del paciente y recarga. */
+    fun saveGeofences(
+        patientUid: String,
+        zones: List<com.example.cuidalink.model.remote.GeofenceZone>
+    ) {
+        viewModelScope.launch {
+            repository.setGeofences(patientUid, zones)
+            loadLinkedPatient()
+        }
+    }
+
+    /** Solicita la ubicación actual del paciente. */
+    fun requestLocation(patientUid: String) {
+        viewModelScope.launch {
+            repository.requestPatientLocation(patientUid)
+        }
+    }
+
+    /** Sube una nueva foto de perfil y recarga el perfil para mostrarla. */
+    fun uploadPhoto(bytes: ByteArray) {
+        viewModelScope.launch {
+            repository.uploadProfilePhoto(bytes).onSuccess { loadCurrentPatient() }
         }
     }
 }

@@ -69,6 +69,20 @@ class LinkService(
             .decodeList<Vinculation>()
             .isNotEmpty()
 
+    /** Borra todas las vinculaciones de un paciente (DELETE). */
+    suspend fun deleteVinculationsForPatient(patientId: Long) {
+        client.from(TABLE_VINCULATIONS).delete {
+            filter { eq(COLUMN_PATIENT_ID, patientId) }
+        }
+    }
+
+    /** Borra todas las vinculaciones de un cuidador (DELETE). */
+    suspend fun deleteVinculationsForCaretaker(caretakerId: Long) {
+        client.from(TABLE_VINCULATIONS).delete {
+            filter { eq(COLUMN_CARETAKER_ID, caretakerId) }
+        }
+    }
+
     private companion object {
         const val TABLE_PATIENTS = "patients"
         const val TABLE_CARETAKERS = "caretakers"

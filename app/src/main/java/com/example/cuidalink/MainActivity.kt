@@ -45,9 +45,20 @@ import com.example.cuidalink.ui.CalendarScreen
 import com.example.cuidalink.ui.ThemeScreen
 import com.example.cuidalink.ui.CognitiveCenterScreen
 import com.example.cuidalink.ui.ContactsScreen
+import com.example.cuidalink.ui.CaregiverSosScreen
+import com.example.cuidalink.ui.CaregiverIncomingSosScreen
+import com.example.cuidalink.ui.CaregiverSosWatcher
+import com.example.cuidalink.ui.CaregiverZoneAlertScreen
+import com.example.cuidalink.ui.CaregiverZoneWatcher
 import com.example.cuidalink.ui.DashboardScreen
+import com.example.cuidalink.ui.GameActivityReporter
+import com.example.cuidalink.ui.PatientLocationReporter
+import com.example.cuidalink.ui.PatientSosWatcher
 import com.example.cuidalink.ui.EMERGENCY_PHONE
 import com.example.cuidalink.ui.EmergencyHelpScreen
+import com.example.cuidalink.viewmodel.CaregiverProfileViewModel
+import com.example.cuidalink.viewmodel.ProfileUiState
+import org.osmdroid.util.GeoPoint
 import com.example.cuidalink.ui.EmojiPairsGameScreen
 import com.example.cuidalink.ui.FAB_DOCK_OFFSET
 import com.example.cuidalink.ui.FloatingNavItem
@@ -81,6 +92,7 @@ import com.example.cuidalink.viewmodel.SessionViewModel
 import com.example.cuidalink.viewmodel.UserRole
 import com.example.cuidalink.viewmodel.AuthState
 import com.example.cuidalink.viewmodel.LoginViewModel
+import com.example.cuidalink.viewmodel.PatientEmergencyViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -129,6 +141,8 @@ class MainActivity : ComponentActivity() {
             CuidaLinkTheme {
                 // ViewModels a nivel de actividad para que su estado se comparta
                 val calendarViewModel: CalendarViewModel = viewModel()
+                // SOS del paciente: al pulsar el botón avisa al cuidador vinculado.
+                val patientEmergencyViewModel: PatientEmergencyViewModel = viewModel()
                 // Accesibilidad compartida: el ViewModel alimenta la apariencia global.
                 val accessibilityViewModel: AccessibilityViewModel = viewModel()
                 val accessibilityState by accessibilityViewModel.uiState.collectAsState()
@@ -234,15 +248,15 @@ class MainActivity : ComponentActivity() {
                                 val actualRole = sessionViewModel.resolveCurrentRole()
                                 if (actualRole != null) {
                                     sessionViewModel.persistSession(actualRole)
-                                    
+
                                     // Verificar vinculación para redirigir si es necesario
                                     val isLinked = when (actualRole) {
                                         UserRole.PACIENTE -> sessionViewModel.isPatientLinked()
                                         UserRole.CUIDADOR -> sessionViewModel.isCaretakerLinked()
                                     }
-                                    
+
                                     val currentRoute = navController.currentBackStackEntry?.destination?.route
-                                    
+
                                     if (!isLinked) {
                                         val target = if (actualRole == UserRole.CUIDADOR) "cuidador_vincular" else "paciente_codigo"
                                         // Redirigir si no estamos en la pantalla de vinculación correcta ni ya vinculados
@@ -277,11 +291,22 @@ class MainActivity : ComponentActivity() {
                                 .background(backgroundBrush),
                             containerColor = Color.Transparent,
                             floatingActionButton = {
-                                if (currentRoute in bottomBarRoutes) {
+                                // SOS disponible tanto para el paciente como para el cuidador.
+                                if (currentRoute in bottomBarRoutes || currentRoute in caregiverBarRoutes) {
                                     // SOS centrado y bajado para sobresalir en la barra.
                                     SosFab(
-                                        // Al activar el SOS se abre el modo de auxilio
-                                        onClick = { navController.navigate("auxilio") },
+                                        // Al activar el SOS se abre el modo de auxilio (versión
+                                        // del cuidador si viene de su grafo).
+                                        onClick = {
+                                            val target = if (currentRoute in caregiverBarRoutes) {
+                                                "cuidador_auxilio"
+                                            } else {
+                                                // El paciente avisa a su cuidador al activar el SOS.
+                                                patientEmergencyViewModel.activateSos()
+                                                "auxilio"
+                                            }
+                                            navController.navigate(target)
+                                        },
                                         modifier = Modifier.offset(y = FAB_DOCK_OFFSET)
                                     )
                                 }
@@ -297,15 +322,31 @@ class MainActivity : ComponentActivity() {
                                         onNavigate = { route -> navigateToTab(route) }
                                     )
                                 } else if (currentRoute in caregiverBarRoutes) {
-                                    // Misma píldora flotante pero sin SOS (cuidador).
-                                    CaregiverBottomBar(
-                                        items = caregiverNavItems,
+                                    // Misma barra con hueco central para el SOS que el paciente.
+                                    SosBottomBar(
+                                        leftItems = caregiverNavItems.take(2),
+                                        rightItems = caregiverNavItems.drop(2),
                                         currentRoute = currentRoute,
                                         onNavigate = { route -> navigateCaregiverTab(route) }
                                     )
                                 }
                             }
                         ) { innerPadding ->
+                            // Global: si el cuidador activa un SOS, el paciente lo recibe
+                            // en cualquier pantalla (y una notificación). No pinta nada.
+                            PatientSosWatcher(
+                                onSosReceived = { navController.navigate("auxilio") }
+                            )
+                            // Global: si el paciente activa su SOS, el cuidador recibe la
+                            // alerta con su ubicación en cualquier pantalla (y notificación).
+                            CaregiverSosWatcher(
+                                onSosReceived = { navController.navigate("cuidador_alerta_paciente") }
+                            )
+                            // Global: si el paciente sale de su zona segura, el cuidador recibe
+                            // una alerta con su ubicación en cualquier pantalla (y notificación).
+                            CaregiverZoneWatcher(
+                                onZoneExit = { navController.navigate("cuidador_alerta_zona") }
+                            )
                             NavHost(
                                 navController = navController,
                                 startDestination = startGraph,
@@ -370,6 +411,8 @@ class MainActivity : ComponentActivity() {
                                 // ----- Grafo del PACIENTE (experiencia simple + SOS) -----
                                 navigation(startDestination = "inicio", route = "patient_graph") {
                                     composable("inicio") {
+                                        // Reporta el GPS del paciente a Supabase para el cuidador.
+                                        PatientLocationReporter()
                                         DashboardScreen(
                                             calendarViewModel = calendarViewModel,
                                             onOpenCalendar = { navigateToTab("calendario") },
@@ -383,6 +426,8 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                     composable("juego") {
+                                        // Registra minutos jugados y actividad para el cuidador.
+                                        GameActivityReporter(activity = "Juego de memoria")
                                         // Pantalla de juego a foco completo (sin barra),
                                         GameScreen(
                                             viewModel = gameViewModel,
@@ -390,6 +435,7 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                     composable("juegoParejas") {
+                                        GameActivityReporter(activity = "Parejas de Emojis")
                                         // Juego de memoria local (Parejas de Emojis).
                                         EmojiPairsGameScreen(
                                             onBack = { navController.popBackStack() }
@@ -398,6 +444,7 @@ class MainActivity : ComponentActivity() {
                                     composable("auxilio") {
                                         // Modo de auxilio automático "Ayuda en camino"
                                         EmergencyHelpScreen(
+                                            viewModel = patientEmergencyViewModel,
                                             onCall = {
                                                 val intent = Intent(
                                                     Intent.ACTION_DIAL,
@@ -418,7 +465,13 @@ class MainActivity : ComponentActivity() {
                                             onOpenProfile = { navController.navigate("perfil") },
                                             onOpenAccessibility = { navController.navigate("accesibilidad") },
                                             onOpenTheme = { navController.navigate("tema") },
-                                            onLogout = { logout() }
+                                            onLogout = { logout() },
+                                            onUnlinked = {
+                                                navController.navigate("paciente_codigo") {
+                                                    popUpTo("patient_graph") { inclusive = true }
+                                                    launchSingleTop = true
+                                                }
+                                            }
                                         )
                                     }
                                     composable("tema") {
@@ -455,7 +508,14 @@ class MainActivity : ComponentActivity() {
                                     composable("monitoreo") {
                                         CaregiverDashboardScreen(
                                             onOpenHistory = { navController.navigate("cuidador_historial") },
-                                            onOpenProfile = { navController.navigate("cuidador_perfil") }
+                                            onOpenProfile = { navController.navigate("cuidador_perfil") },
+                                            onConfigureZone = { navigateCaregiverTab("zonas") },
+                                            onNeedsLinking = {
+                                                navController.navigate("cuidador_vincular") {
+                                                    popUpTo("caregiver_graph") { inclusive = true }
+                                                    launchSingleTop = true
+                                                }
+                                            }
                                         )
                                     }
                                     composable("cuidador_calendario") {
@@ -474,7 +534,13 @@ class MainActivity : ComponentActivity() {
                                             onOpenProfile = { navController.navigate("cuidador_mi_perfil") },
                                             onOpenAccessibility = { navController.navigate("accesibilidad") },
                                             onOpenTheme = { navController.navigate("tema") },
-                                            onLogout = { logout() }
+                                            onLogout = { logout() },
+                                            onUnlinked = {
+                                                navController.navigate("cuidador_vincular") {
+                                                    popUpTo("caregiver_graph") { inclusive = true }
+                                                    launchSingleTop = true
+                                                }
+                                            }
                                         )
                                     }
                                     composable("cuidador_historial") {
@@ -485,6 +551,18 @@ class MainActivity : ComponentActivity() {
                                     }
                                     composable("cuidador_mi_perfil") {
                                         CaregiverProfileScreen(onBack = { navController.popBackStack() })
+                                    }
+                                    composable("cuidador_auxilio") {
+                                        // SOS del cuidador: avisa al paciente y muestra su ubicación.
+                                        CaregiverSosScreen(onBack = { navController.popBackStack() })
+                                    }
+                                    composable("cuidador_alerta_paciente") {
+                                        // El paciente activó su SOS: alerta con su ubicación.
+                                        CaregiverIncomingSosScreen(onBack = { navController.popBackStack() })
+                                    }
+                                    composable("cuidador_alerta_zona") {
+                                        // El paciente salió de la zona segura: alerta con su ubicación.
+                                        CaregiverZoneAlertScreen(onBack = { navController.popBackStack() })
                                     }
                                 } // fin caregiver_graph
                             }

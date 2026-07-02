@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Mail
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -143,6 +144,19 @@ fun RegisterScreen(
                     singleLine = true,
                     leadingIcon = { Icon(imageVector = Icons.Filled.Cake, contentDescription = null) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    enabled = !isLoading,
+                    colors = fieldColors(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = form.emergencyPhone,
+                    onValueChange = { viewModel.onEmergencyPhoneChange(it); viewModel.resetSubmission() },
+                    label = { Text("Teléfono de contacto") },
+                    singleLine = true,
+                    leadingIcon = { Icon(imageVector = Icons.Filled.Phone, contentDescription = null) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    supportingText = { Text("Se usará para el botón \"Llamar a casa\".") },
                     enabled = !isLoading,
                     colors = fieldColors(),
                     modifier = Modifier.fillMaxWidth()

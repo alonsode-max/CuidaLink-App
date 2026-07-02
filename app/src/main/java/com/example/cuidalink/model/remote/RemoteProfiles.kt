@@ -3,7 +3,7 @@ package com.example.cuidalink.model.remote
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-/** DTO que refleja la tabla `patients` del backend Supabase del compañero. */
+/** DTO que refleja la tabla `patients` del backend Supabase. */
 @Serializable
 data class Patient(
     val id: Long? = null,
@@ -18,15 +18,67 @@ data class Patient(
     val height: Float? = null,
     /** Código único de 6 dígitos para vincular cuidadores. */
     val code: String? = null,
+    /** Teléfono de contacto/emergencia ("llamar a casa"). */
+    @SerialName("emergency_phone") val emergencyPhone: String? = null,
     @SerialName("created_at") val createdAt: String? = null,
-    @SerialName("profile_pic") val profilePic: String? = null
+    @SerialName("profile_pic") val profilePic: String? = null,
+    
+    // Ubicación y geovalla
+    @SerialName("patient_lat") val patientLat: Double? = null,
+    @SerialName("patient_lng") val patientLng: Double? = null,
+    @SerialName("geofence_lat") val geofenceLat: Double? = null,
+    @SerialName("geofence_lng") val geofenceLng: Double? = null,
+    @SerialName("geofence_radius") val geofenceRadius: Float? = null,
+    /** Varias zonas seguras del paciente (array JSON en la fila del paciente). */
+    val geofences: List<GeofenceZone> = emptyList(),
+    
+    // Campo para solicitar ubicación (ping)
+    @SerialName("location_request_trigger") val locationRequestTrigger: String? = null,
+
+    // El cuidador cambia este valor para activar el SOS en la app del paciente.
+    @SerialName("sos_alert_trigger") val sosAlertTrigger: String? = null,
+
+    // El paciente cambia este valor al pulsar su SOS: el cuidador lo observa.
+    @SerialName("patient_sos_trigger") val patientSosTrigger: String? = null,
+
+    // Telemetría que el paciente envía al cuidador (batería, pasos, juego).
+    @SerialName("battery_percent") val batteryPercent: Int? = null,
+    @SerialName("steps") val steps: Int? = null,
+    @SerialName("minutes_played") val minutesPlayed: Int? = null,
+    @SerialName("last_activity") val lastActivity: String? = null
+)
+
+/** Una zona segura (geovalla) del paciente: centro + radio en metros. */
+@Serializable
+data class GeofenceZone(
+    val lat: Double,
+    val lng: Double,
+    val radius: Float,
+    val name: String? = null
 )
 
 /**
- * DTO de la tabla `vinculations`: une un paciente con un cuidador.
- *
- * `patientId`/`caretakerId` referencian el `id` (PK) de cada tabla.
+ * DTO de la tabla `location_history`: cada punto de ubicación que el paciente ha
+ * reportado. El cuidador lee los más recientes para ver el rastro de ubicaciones.
  */
+@Serializable
+data class LocationHistoryRow(
+    val id: Long? = null,
+    @SerialName("patient_id") val patientId: Long,
+    val lat: Double,
+    val lng: Double,
+    @SerialName("created_at") val createdAt: String? = null
+)
+
+/** Payload de inserción para `location_history`: solo las columnas que escribimos. */
+@Serializable
+data class LocationHistoryInsert(
+    @SerialName("patient_id") val patientId: Long,
+    val lat: Double,
+    val lng: Double
+)
+
+/** DTO de la tabla `vinculations`. */
 @Serializable
 data class Vinculation(
     val id: Long? = null,
@@ -47,7 +99,7 @@ data class VinculationInsert(
     @SerialName("caretaker_id") val caretakerId: Long
 )
 
-/** DTO que refleja la tabla `caretakers` del backend Supabase del compañero. */
+/** DTO que refleja la tabla `caretakers` del backend Supabase. */
 @Serializable
 data class Caretaker(
     val id: Long? = null,

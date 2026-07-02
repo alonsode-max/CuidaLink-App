@@ -2,6 +2,7 @@ package com.example.cuidalink.ui.caregiver
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,9 +14,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -25,11 +35,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.example.cuidalink.model.ui.CaregiverProfileUi
+import com.example.cuidalink.ui.rememberImagePicker
 import com.example.cuidalink.ui.components.ProfileErrorView
 import com.example.cuidalink.ui.components.ShimmerBox
 import com.example.cuidalink.ui.theme.CuidaBorderLight
@@ -44,13 +60,13 @@ import com.example.cuidalink.viewmodel.CaregiverProfileViewModel
 import com.example.cuidalink.viewmodel.ProfileUiState
 
 private const val FALLBACK = "—"
-private const val DEFAULT_ROLE = "Cuidador/a principal"
 
 /** Ficha del cuidador (su propio perfil) alimentada desde el backend. */
 @Composable
 fun CaregiverProfileScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
+    onOpenLinking: () -> Unit = {},
     viewModel: CaregiverProfileViewModel = viewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -79,34 +95,62 @@ fun CaregiverProfileScreen(
                     message = current.message,
                     onRetry = { viewModel.loadCurrentCaregiver() }
                 )
-                is ProfileUiState.Success -> CaregiverProfileContent(current.data)
+                is ProfileUiState.Success -> CaregiverProfileContent(
+                    data = current.data,
+                    onOpenLinking = onOpenLinking,
+                    onPickPhoto = viewModel::uploadPhoto
+                )
             }
         }
     }
 }
 
 @Composable
-private fun CaregiverProfileContent(data: CaregiverProfileUi) {
+private fun CaregiverProfileContent(
+    data: CaregiverProfileUi,
+    onOpenLinking: () -> Unit,
+    onPickPhoto: (ByteArray) -> Unit
+) {
     IdentityHeader(
         name = data.name,
-        subtitle = data.relationship ?: DEFAULT_ROLE,
-        initials = initialsOf(data.name)
+        subtitle = "Cuidador",
+        initials = initialsOf(data.name),
+        photoUrl = data.profilePicUrl,
+        onPickPhoto = onPickPhoto
     )
 
     InfoCard(title = "Datos personales") {
-        InfoRow(label = "Parentesco", value = data.relationship ?: FALLBACK)
-        RowDivider()
-        InfoRow(label = "Teléfono", value = data.phone ?: FALLBACK)
-        RowDivider()
         InfoRow(label = "Correo", value = data.email ?: FALLBACK)
     }
 
     InfoCard(title = "Paciente a cargo") {
-        InfoRow(label = "Nombre", value = data.patientName ?: FALLBACK)
-        RowDivider()
-        InfoRow(label = "Relación", value = data.patientRelation ?: FALLBACK)
-        RowDivider()
-        InfoRow(label = "Dispositivo", value = data.patientDeviceId ?: FALLBACK)
+        if (data.isLinked) {
+            InfoRow(label = "Nombre", value = data.patientName ?: FALLBACK)
+            RowDivider()
+            InfoRow(label = "Correo", value = data.patientEmail ?: FALLBACK)
+        } else {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "No tienes un paciente vinculado. Por favor, vincula uno.",
+                    fontSize = 15.sp,
+                    color = CuidaTextSecondary,
+                    textAlign = TextAlign.Center
+                )
+                Button(
+                    onClick = onOpenLinking,
+                    colors = ButtonDefaults.buttonColors(containerColor = CuidaGreen),
+                    shape = RoundedCornerShape(percent = 50)
+                ) {
+                    Icon(Icons.Default.Link, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Vincular ahora")
+                }
+            }
+        }
     }
 }
 
@@ -133,27 +177,64 @@ private fun CaregiverProfileLoading() {
 }
 
 @Composable
-private fun IdentityHeader(name: String, subtitle: String, initials: String) {
+private fun IdentityHeader(
+    name: String,
+    subtitle: String,
+    initials: String,
+    photoUrl: String?,
+    onPickPhoto: (ByteArray) -> Unit
+) {
+    val pickImage = rememberImagePicker(onImageBytes = onPickPhoto)
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         val avatarShape = RoundedCornerShape(24.dp)
-        Box(
-            modifier = Modifier
-                .size(96.dp)
-                .clip(avatarShape)
-                .background(CuidaGreenSurface)
-                .border(4.dp, CuidaGreenSurfaceHover, avatarShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = initials,
-                fontSize = 30.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = CuidaGreen
-            )
+        Box(contentAlignment = Alignment.BottomEnd) {
+            Box(
+                modifier = Modifier
+                    .size(96.dp)
+                    .clip(avatarShape)
+                    .background(CuidaGreenSurface)
+                    .border(4.dp, CuidaGreenSurfaceHover, avatarShape)
+                    .clickable(onClick = pickImage)
+                    .semantics { contentDescription = "Cambiar foto de perfil" },
+                contentAlignment = Alignment.Center
+            ) {
+                if (photoUrl != null) {
+                    AsyncImage(
+                        model = photoUrl,
+                        contentDescription = "Foto de perfil de $name",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize().clip(avatarShape)
+                    )
+                } else {
+                    Text(
+                        text = initials,
+                        fontSize = 30.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = CuidaGreen
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(CuidaGreen)
+                    .border(2.dp, Color.White, CircleShape)
+                    .clickable(onClick = pickImage),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Edit,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
         }
         Text(
             text = name,

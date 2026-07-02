@@ -27,6 +27,14 @@ sealed interface LinkState {
     data class Error(val message: String) : LinkState
 }
 
+/** Estado de la desvinculación (pantalla de configuración). */
+sealed interface UnlinkState {
+    data object Idle : UnlinkState
+    data object Loading : UnlinkState
+    data object Success : UnlinkState
+    data class Error(val message: String) : UnlinkState
+}
+
 /**
  * ViewModel compartido por las dos pantallas de vinculación:
  * el paciente muestra su código y el cuidador lo introduce para vincularse.
@@ -43,6 +51,9 @@ class LinkViewModel(
 
     private val _linkState = MutableStateFlow<LinkState>(LinkState.Idle)
     val linkState: StateFlow<LinkState> = _linkState.asStateFlow()
+
+    private val _unlinkState = MutableStateFlow<UnlinkState>(UnlinkState.Idle)
+    val unlinkState: StateFlow<UnlinkState> = _unlinkState.asStateFlow()
 
     /** `true` cuando un cuidador ya vinculó a este paciente (lo detecta el sondeo). */
     private val _patientLinked = MutableStateFlow(false)
@@ -96,6 +107,22 @@ class LinkViewModel(
                 onFailure = { LinkState.Error(mapError(it)) }
             )
         }
+    }
+
+    /** Rompe el vínculo del usuario actual (paciente o cuidador). */
+    fun unlink() {
+        viewModelScope.launch {
+            _unlinkState.value = UnlinkState.Loading
+            _unlinkState.value = repository.unlinkCurrent().fold(
+                onSuccess = { UnlinkState.Success },
+                onFailure = { UnlinkState.Error(it.message ?: "No se pudo desvincular") }
+            )
+        }
+    }
+
+    /** Vuelve el estado de desvinculación a inactivo (tras consumir el resultado). */
+    fun resetUnlink() {
+        _unlinkState.value = UnlinkState.Idle
     }
 
     private fun mapError(e: Throwable): String = when (e) {

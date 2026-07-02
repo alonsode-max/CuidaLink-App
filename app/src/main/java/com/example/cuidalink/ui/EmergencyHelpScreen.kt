@@ -25,7 +25,12 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.cuidalink.viewmodel.PatientEmergencyViewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,6 +47,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.cuidalink.ui.theme.*
+import org.osmdroid.util.GeoPoint
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
@@ -53,12 +59,20 @@ private val ALERT_TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("
 @Composable
 fun EmergencyHelpScreen(
     modifier: Modifier = Modifier,
-    contactName: String = "Lucía",
     onCall: () -> Unit = {},
-    onCancel: () -> Unit = {}
+    onCancel: () -> Unit = {},
+    viewModel: PatientEmergencyViewModel = viewModel()
 ) {
     // La hora en que se activó la alerta se fija una sola vez al entrar.
     val alertTime = remember { LocalTime.now().format(ALERT_TIME_FORMAT) }
+    val state by viewModel.state.collectAsState()
+    LaunchedEffect(Unit) { viewModel.load() }
+
+    val location = if (state.lat != null && state.lng != null) {
+        GeoPoint(state.lat!!, state.lng!!)
+    } else {
+        null
+    }
 
     Column(
         modifier = modifier
@@ -78,9 +92,12 @@ fun EmergencyHelpScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             AlertIcon()
-            ReassuranceText(contactName = contactName)
-            CalmGuideCard()
-            LiveMapPlaceholder()
+            ReassuranceText(contactName = state.caretakerName)
+            if (location != null) {
+                RealLocationMap(location = location)
+            } else {
+                LiveMapPlaceholder()
+            }
             Spacer(modifier = Modifier.height(4.dp))
         }
 
@@ -134,7 +151,7 @@ private fun AlertIcon() {
 }
 
 @Composable
-private fun ReassuranceText(contactName: String) {
+private fun ReassuranceText(contactName: String?) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = "No te muevas.\nLa ayuda viene en camino.",
@@ -146,7 +163,11 @@ private fun ReassuranceText(contactName: String) {
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "$contactName ya está avisada y va hacia ti.",
+            text = if (contactName != null) {
+                "$contactName ya está avisado y va hacia ti."
+            } else {
+                "Tu cuidador ya está avisado y va hacia ti."
+            },
             textAlign = TextAlign.Center,
             fontSize = 14.sp,
             color = CuidaTextSecondary
@@ -154,65 +175,29 @@ private fun ReassuranceText(contactName: String) {
     }
 }
 
-// Audioguía de calma: tarjeta verde con reproducción y barra de progreso.
+// Mapa real con la ubicación (del paciente) fijada al centro.
 @Composable
-private fun CalmGuideCard() {
-    Row(
+private fun RealLocationMap(location: GeoPoint) {
+    Box(
         modifier = Modifier
             .fillMaxWidth()
+            .height(200.dp)
             .clip(RoundedCornerShape(18.dp))
-            .background(CuidaGreenSurface)
-            .padding(14.dp)
-            .semantics {
-                contentDescription = "Guía de calma. Respira conmigo, audio de dos minutos diez segundos"
-            },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+            .semantics { contentDescription = "Mapa con la ubicación en tiempo real" },
+        contentAlignment = Alignment.Center
     ) {
+        OsmMap(
+            center = location,
+            zoom = 16.0,
+            modifier = Modifier.fillMaxSize()
+        )
         Box(
             modifier = Modifier
-                .size(44.dp)
+                .size(20.dp)
                 .clip(CircleShape)
-                .background(CuidaGreenAccent),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Filled.PlayArrow,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "Guía de calma",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = CuidaGreenDark
-            )
-            Text(
-                text = "Respira conmigo · 2:10",
-                fontSize = 12.sp,
-                color = CuidaGreenSubtle
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            // Barra de progreso: pista blanca con el 35% relleno en verde.
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(Color.White)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.35f)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(CuidaGreenAccent)
-                )
-            }
-        }
+                .background(Color.White)
+                .border(width = 4.dp, color = CuidaRed, shape = CircleShape)
+        )
     }
 }
 
