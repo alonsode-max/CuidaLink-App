@@ -162,7 +162,7 @@ fun SettingsScreen(
                 icon = Icons.Filled.Info,
                 label = "Centro de ayuda",
                 onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://forms.gle/CuidaLinkSupport"))
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://landing-page-cuida-link.vercel.app/contacto"))
                     context.startActivity(intent)
                 }
             )
