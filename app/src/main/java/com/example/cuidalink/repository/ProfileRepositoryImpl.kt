@@ -1,9 +1,11 @@
 package com.example.cuidalink.repository
 
+import com.example.cuidalink.model.remote.Patient
 import com.example.cuidalink.model.ui.CaregiverProfileUi
 import com.example.cuidalink.model.ui.PatientProfileUi
 import com.example.cuidalink.model.ui.toUi
 import com.example.cuidalink.network.ProfileService
+import kotlinx.coroutines.flow.Flow
 
 /** Implementación que consulta Supabase vía [ProfileService] y mapea a modelos Bento. */
 class ProfileRepositoryImpl(
@@ -23,6 +25,15 @@ class ProfileRepositoryImpl(
             val patient = service.fetchPatientByUid(uid)
                 ?: error("No se encontró el paciente con uid=$uid")
             val caretaker = service.fetchLinkedCaretaker(patient.id!!)
+            patient.toUi(caretaker)
+        }
+
+    override suspend fun getLinkedPatientProfile(): Result<PatientProfileUi> =
+        runCatching {
+            val caretaker = service.fetchCurrentCaretaker()
+                ?: error("No hay un cuidador en la sesión actual")
+            val patient = service.fetchLinkedPatient(caretaker.id!!)
+                ?: error("No tienes un paciente vinculado")
             patient.toUi(caretaker)
         }
 
@@ -56,4 +67,13 @@ class ProfileRepositoryImpl(
         runCatching {
             service.requestLocation(patientUid)
         }
+
+    override fun observePatient(patientId: Long): Flow<Patient> =
+        service.observePatientById(patientId)
+
+    override suspend fun updatePatientMetrics(patientUid: String, batteryPercent: Int, steps: Int): Result<Unit> =
+        runCatching { service.updatePatientMetrics(patientUid, batteryPercent, steps) }
+
+    override suspend fun addGameActivity(patientUid: String, minutesToAdd: Int, activity: String): Result<Unit> =
+        runCatching { service.addGameActivity(patientUid, minutesToAdd, activity) }
 }

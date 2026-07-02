@@ -32,6 +32,11 @@ class PatientProfileViewModel(
         load { repository.getPatientProfile(uid) }
     }
 
+    /** Carga el perfil del paciente VINCULADO al cuidador actual (vista del cuidador). */
+    fun loadLinkedPatient() {
+        load { repository.getLinkedPatientProfile() }
+    }
+
     private fun load(source: suspend () -> Result<PatientProfileUi>) {
         viewModelScope.launch {
             _state.value = ProfileUiState.Loading

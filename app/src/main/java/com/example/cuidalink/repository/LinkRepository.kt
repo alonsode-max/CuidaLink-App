@@ -33,6 +33,9 @@ interface LinkRepository {
 
     /** `true` si el cuidador autenticado ya tiene un paciente vinculado. */
     suspend fun isCurrentCaretakerLinked(): Result<Boolean>
+
+    /** Rompe el vínculo del usuario actual (paciente o cuidador). */
+    suspend fun unlinkCurrent(): Result<Unit>
 }
 
 /**
@@ -109,6 +112,28 @@ class SupabaseLinkRepository(
         }
     }
 
+    override suspend fun unlinkCurrent(): Result<Unit> = runCatching {
+        val uid = service.currentUid()
+            ?: throw IllegalStateException("No hay una sesión activa")
+
+        try {
+            withTimeout(NETWORK_TIMEOUT_MS) {
+                // El usuario puede ser cuidador o paciente: borramos por el rol que sea.
+                service.fetchCaretakerByUid(uid)?.id?.let { caretakerId ->
+                    service.deleteVinculationsForCaretaker(caretakerId)
+                    return@withTimeout
+                }
+                service.fetchPatientByUid(uid)?.id?.let { patientId ->
+                    service.deleteVinculationsForPatient(patientId)
+                    return@withTimeout
+                }
+                throw IllegalStateException("No encontramos tu perfil para desvincular")
+            }
+        } catch (e: TimeoutCancellationException) {
+            throw IllegalStateException("La conexión tardó demasiado, inténtalo de nuevo")
+        }
+    }
+
     private companion object {
         const val CODE_LENGTH = 6
     }
@@ -137,4 +162,9 @@ class SimulatedLinkRepository(
     override suspend fun isCurrentPatientLinked(): Result<Boolean> = Result.success(false)
 
     override suspend fun isCurrentCaretakerLinked(): Result<Boolean> = Result.success(false)
+
+    override suspend fun unlinkCurrent(): Result<Unit> = runCatching {
+        delay(networkDelayMs)
+        Unit
+    }
 }

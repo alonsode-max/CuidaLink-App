@@ -6,7 +6,16 @@ import com.example.cuidalink.model.remote.Vinculation
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.filter.FilterOperator
+import io.github.jan.supabase.realtime.PostgresAction
+import io.github.jan.supabase.realtime.channel
+import io.github.jan.supabase.realtime.decodeRecord
+import io.github.jan.supabase.realtime.postgresChangeFlow
 import java.util.UUID
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onStart
 
 /**
  * Cliente de API contra las tablas Postgrest del backend (`patients`, `caretakers`).
@@ -63,6 +72,25 @@ class ProfileService(
             .decodeSingleOrNull()
     }
 
+    /**
+     * Observa en tiempo real (websockets) los cambios de la fila del paciente indicado.
+     * Emite el [Patient] actualizado cada vez que el backend recibe un UPDATE. Se
+     * suscribe al empezar a coleccionar y cancela el canal al terminar.
+     */
+    fun observePatientById(patientId: Long): Flow<Patient> {
+        // Id único por suscripción: si dos pantallas observan al mismo paciente, no
+        // pueden compartir un canal ya unido (supabase-kt lanza IllegalStateException).
+        val channel = client.channel("patient_${patientId}_${UUID.randomUUID()}")
+        return channel
+            .postgresChangeFlow<PostgresAction.Update>(schema = "public") {
+                table = TABLE_PATIENTS
+                filter("id", FilterOperator.EQ, patientId)
+            }
+            .mapNotNull { action -> runCatching { action.decodeRecord<Patient>() }.getOrNull() }
+            .onStart { channel.subscribe() }
+            .onCompletion { runCatching { channel.unsubscribe() } }
+    }
+
     /** Actualiza la geovalla del paciente. */
     suspend fun updateGeofence(patientUid: String, lat: Double, lng: Double, radius: Float) {
         client.from(TABLE_PATIENTS).update(
@@ -85,6 +113,60 @@ class ProfileService(
             }
         ) {
             filter { eq(COLUMN_UID, patientUid) }
+        }
+    }
+
+    /** Actualiza la telemetría del paciente (batería y pasos) para el cuidador. */
+    suspend fun updatePatientMetrics(patientUid: String, batteryPercent: Int, steps: Int) {
+        client.from(TABLE_PATIENTS).update(
+            {
+                set("battery_percent", batteryPercent)
+                set("steps", steps)
+            }
+        ) {
+            filter { eq(COLUMN_UID, patientUid) }
+        }
+    }
+
+    /**
+     * Suma [minutesToAdd] a los minutos jugados y fija la última actividad.
+     * Lee el total actual y lo reescribe (read-modify-write).
+     */
+    suspend fun addGameActivity(patientUid: String, minutesToAdd: Int, activity: String) {
+        val current = fetchPatientByUid(patientUid)?.minutesPlayed ?: 0
+        client.from(TABLE_PATIENTS).update(
+            {
+                set("minutes_played", current + minutesToAdd)
+                set("last_activity", activity)
+            }
+        ) {
+            filter { eq(COLUMN_UID, patientUid) }
+        }
+    }
+
+    /** Activa el SOS en la app del paciente cambiando un valor que su app observa. */
+    suspend fun triggerSosAlert(patientUid: String) {
+        client.from(TABLE_PATIENTS).update(
+            {
+                set("sos_alert_trigger", UUID.randomUUID().toString())
+            }
+        ) {
+            filter { eq(COLUMN_UID, patientUid) }
+        }
+    }
+
+    /**
+     * El PACIENTE activa su SOS: escribe `patient_sos_trigger` en su propia fila
+     * (por su uid de sesión), que el cuidador vinculado observa en tiempo real.
+     */
+    suspend fun triggerPatientSos() {
+        val uid = currentUid() ?: return
+        client.from(TABLE_PATIENTS).update(
+            {
+                set("patient_sos_trigger", UUID.randomUUID().toString())
+            }
+        ) {
+            filter { eq(COLUMN_UID, uid) }
         }
     }
 

@@ -25,6 +25,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -67,6 +68,9 @@ fun CaregiverPatientProfileScreen(
 ) {
     val state by viewModel.state.collectAsState()
 
+    // El cuidador ve el paciente VINCULADO (no "el paciente de la sesión", que no existe).
+    LaunchedEffect(Unit) { viewModel.loadLinkedPatient() }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -89,7 +93,7 @@ fun CaregiverPatientProfileScreen(
                 is ProfileUiState.Loading -> PatientProfileLoading()
                 is ProfileUiState.Error -> ProfileErrorView(
                     message = current.message,
-                    onRetry = { viewModel.loadCurrentPatient() }
+                    onRetry = { viewModel.loadLinkedPatient() }
                 )
                 is ProfileUiState.Success -> PatientProfileContent(current.data, viewModel)
             }

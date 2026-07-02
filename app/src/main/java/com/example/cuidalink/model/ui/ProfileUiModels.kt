@@ -52,9 +52,22 @@ data class CaregiverProfileUi(
     val profilePicUrl: String?,
     val relationship: String? = null,
     val phone: String? = null,
+    val patientId: Long? = null,
     val patientName: String? = null,
     val patientEmail: String? = null,
-    val isLinked: Boolean = false
+    val isLinked: Boolean = false,
+    // Ubicación del paciente a cargo (para el mapa del dashboard del cuidador).
+    val patientLat: Double? = null,
+    val patientLng: Double? = null,
+    // Telemetría del paciente que se muestra en el dashboard del cuidador.
+    val batteryPercent: Int? = null,
+    val steps: Int? = null,
+    val minutesPlayed: Int? = null,
+    val lastActivity: String? = null,
+    // Zona segura (geovalla) para avisar si el paciente sale de ella.
+    val geofenceLat: Double? = null,
+    val geofenceLng: Double? = null,
+    val geofenceRadius: Float? = null
 )
 
 /** Mapea la fila `patients` del backend al modelo de las tarjetas Bento. */
@@ -84,7 +97,17 @@ fun Caretaker.toUi(patient: Patient? = null): CaregiverProfileUi = CaregiverProf
     name = name,
     email = email,
     profilePicUrl = profilePic,
+    patientId = patient?.id,
     patientName = patient?.name,
     patientEmail = patient?.email,
-    isLinked = patient != null
+    isLinked = patient != null,
+    patientLat = patient?.patientLat,
+    patientLng = patient?.patientLng,
+    batteryPercent = patient?.batteryPercent,
+    steps = patient?.steps,
+    minutesPlayed = patient?.minutesPlayed,
+    lastActivity = patient?.lastActivity,
+    geofenceLat = patient?.geofenceLat,
+    geofenceLng = patient?.geofenceLng,
+    geofenceRadius = patient?.geofenceRadius
 )

@@ -40,6 +40,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -51,6 +53,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -67,6 +70,10 @@ import com.example.cuidalink.ui.theme.CuidaTextSecondary
 import com.example.cuidalink.ui.theme.Urbanist
 import com.example.cuidalink.ui.OsmMap
 import com.example.cuidalink.ui.rememberOsmMapController
+import com.example.cuidalink.viewmodel.PatientProfileViewModel
+import com.example.cuidalink.viewmodel.ProfileUiState
+import androidx.lifecycle.viewmodel.compose.viewModel
+import android.widget.Toast
 import org.osmdroid.util.GeoPoint
 import kotlin.math.roundToInt
 
@@ -84,11 +91,30 @@ private enum class ZoneType { VERDE, ROJA }
 @Composable
 fun CaregiverSafeZoneScreen(
     modifier: Modifier = Modifier,
-    onBack: () -> Unit = {}
+    onBack: () -> Unit = {},
+    viewModel: PatientProfileViewModel = viewModel()
 ) {
     var zoneType by remember { mutableStateOf(ZoneType.VERDE) }
     var radius by remember { mutableFloatStateOf(500f) }
     var exitAlert by remember { mutableStateOf(true) }
+
+    val context = LocalContext.current
+    val state by viewModel.state.collectAsState()
+    LaunchedEffect(Unit) { viewModel.loadLinkedPatient() }
+    val data = (state as? ProfileUiState.Success)?.data
+
+    // Centro de la zona: geovalla guardada → ubicación del paciente → Madrid por defecto.
+    val center = when {
+        data?.geofenceLat != null && data.geofenceLng != null ->
+            GeoPoint(data.geofenceLat, data.geofenceLng)
+        data?.patientLat != null && data.patientLng != null ->
+            GeoPoint(data.patientLat, data.patientLng)
+        else -> ZONE_CENTER
+    }
+    // Al cargar el paciente, arranca el slider con el radio ya guardado.
+    LaunchedEffect(data?.geofenceRadius) {
+        data?.geofenceRadius?.let { radius = it }
+    }
 
     Column(
         modifier = modifier
@@ -119,17 +145,27 @@ fun CaregiverSafeZoneScreen(
                 color = CuidaTextSecondary
             )
 
-            TopActions()
+            TopActions(
+                onSave = {
+                    val uid = data?.uid
+                    if (uid != null) {
+                        viewModel.updateGeofence(uid, center.latitude, center.longitude, radius)
+                        Toast.makeText(context, "Zona segura guardada", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "No hay paciente vinculado", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            )
             ZoneTypeCard(selected = zoneType, onSelect = { zoneType = it })
             RadiusCard(radius = radius, onRadiusChange = { radius = it })
             AlertsCard(exitAlert = exitAlert, onToggle = { exitAlert = it })
-            MapCard(radius = radius)
+            MapCard(radius = radius, center = center)
         }
     }
 }
 
 @Composable
-private fun TopActions() {
+private fun TopActions(onSave: () -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Button(
             onClick = {},
@@ -148,7 +184,7 @@ private fun TopActions() {
             Text("Historial", fontWeight = FontWeight.Bold)
         }
         Button(
-            onClick = {},
+            onClick = onSave,
             modifier = Modifier
                 .weight(1.4f)
                 .heightIn(min = 52.dp),
@@ -303,7 +339,7 @@ private fun AlertsCard(exitAlert: Boolean, onToggle: (Boolean) -> Unit) {
 
 // Mapa con el círculo de la zona segura (radio ligado al slider) y controles.
 @Composable
-private fun MapCard(radius: Float) {
+private fun MapCard(radius: Float, center: GeoPoint) {
     val mapController = rememberOsmMapController()
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -314,7 +350,7 @@ private fun MapCard(radius: Float) {
             .clip(RoundedCornerShape(20.dp))
     ) {
         OsmMap(
-            center = ZONE_CENTER,
+            center = center,
             zoom = ZONE_ZOOM,
             controller = mapController,
             circleRadiusMeters = radius.toDouble(),
@@ -377,7 +413,7 @@ private fun MapCard(radius: Float) {
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             MapControl(Icons.Filled.MyLocation, "Centrar") {
-                mapController.recenter(ZONE_CENTER, ZONE_ZOOM)
+                mapController.recenter(center, ZONE_ZOOM)
             }
             MapControl(Icons.Filled.Add, "Acercar") {
                 mapController.zoomIn()

@@ -29,7 +29,19 @@ data class Patient(
     @SerialName("geofence_radius") val geofenceRadius: Float? = null,
     
     // Campo para solicitar ubicación (ping)
-    @SerialName("location_request_trigger") val locationRequestTrigger: String? = null
+    @SerialName("location_request_trigger") val locationRequestTrigger: String? = null,
+
+    // El cuidador cambia este valor para activar el SOS en la app del paciente.
+    @SerialName("sos_alert_trigger") val sosAlertTrigger: String? = null,
+
+    // El paciente cambia este valor al pulsar su SOS: el cuidador lo observa.
+    @SerialName("patient_sos_trigger") val patientSosTrigger: String? = null,
+
+    // Telemetría que el paciente envía al cuidador (batería, pasos, juego).
+    @SerialName("battery_percent") val batteryPercent: Int? = null,
+    @SerialName("steps") val steps: Int? = null,
+    @SerialName("minutes_played") val minutesPlayed: Int? = null,
+    @SerialName("last_activity") val lastActivity: String? = null
 )
 
 /** DTO de la tabla `vinculations`. */
