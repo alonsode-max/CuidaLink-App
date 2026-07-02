@@ -1,57 +1,46 @@
 package com.example.cuidalink.ui.theme
 
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.graphics.Color
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
-)
-
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
+// El diseño de CuidaLink define una única apariencia clara con la paleta verde.
+private val CuidaLinkColorScheme = lightColorScheme(
+    primary = CuidaGreen,
     onPrimary = Color.White,
+    primaryContainer = CuidaGreenSurface,
+    onPrimaryContainer = CuidaGreenDark,
+    secondary = CuidaGreenDark,
     onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    secondaryContainer = CuidaGreenSurfaceHover,
+    onSecondaryContainer = CuidaGreenDark,
+    background = Color.White,
+    onBackground = CuidaTextPrimary,
+    surface = Color.White,
+    onSurface = CuidaTextPrimary,
+    surfaceVariant = CuidaSurfaceMuted,
+    onSurfaceVariant = CuidaTextSecondary,
+    outline = CuidaBorder,
+    outlineVariant = CuidaDivider,
+    error = CuidaRed,
+    onError = Color.White
 )
 
 @Composable
 fun CuidaLinkTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
-
     MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+        colorScheme = CuidaLinkColorScheme,
+        typography = Typography
+    ) {
+        // Aplica Urbanist por defecto a TODO el texto, incluido el que no
+        CompositionLocalProvider(
+            LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = Urbanist),
+            content = content
+        )
+    }
 }

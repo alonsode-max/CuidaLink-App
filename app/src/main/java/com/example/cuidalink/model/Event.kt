@@ -8,8 +8,11 @@ data class Event(
     val name: String,
     val description: String? = null,
     val time: LocalTime,
-    val dates: List<LocalDate> = emptyList(), // Soporta múltiples fechas
+    val dates: List<LocalDate> = emptyList(), // Para eventos no recurrentes con fechas específicas
     val isRecurring: Boolean = false,
-    val recurringDays: List<Int> = emptyList(), // 1 (Lunes) a 7 (Domingo)
+    val recurrenceInterval: Int? = null, // Cada cuántos días se repite
+    val hasPeriod: Boolean = false,
+    val startDate: LocalDate? = null,
+    val endDate: LocalDate? = null,
     val hasAlarm: Boolean = false
 )

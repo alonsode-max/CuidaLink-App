@@ -10,10 +10,14 @@ import com.example.cuidalink.model.Contact
 import com.example.cuidalink.network.SupabaseConfig
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.storage.storage
+import io.ktor.http.ContentType
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.hours
 
 class GameViewModel : ViewModel() {
 
@@ -24,61 +28,80 @@ class GameViewModel : ViewModel() {
         val isGameOver: Boolean = false,
         val isLoading: Boolean = false,
         val message: String? = null,
-        val allContacts: List<Contact> = emptyList()
+        val allContacts: List<Contact> = emptyList(),
+        // Progreso para la barra "X de Y" del nuevo diseño
+        val currentQuestionNumber: Int = 0,
+        val totalQuestions: Int = 0
     )
 
     private val _gameState = MutableStateFlow(GameUiState(isLoading = true))
     val gameState: StateFlow<GameUiState> = _gameState.asStateFlow()
 
     private var availableContacts = listOf<Contact>()
+    private var messageJob: Job? = null
+
+    private fun showMessage(message: String, duration: Long = 3000L) {
+        messageJob?.cancel()
+        _gameState.value = _gameState.value.copy(message = message)
+        messageJob = viewModelScope.launch {
+            delay(duration)
+            _gameState.value = _gameState.value.copy(message = null)
+        }
+    }
 
     fun fetchContacts(contentResolver: ContentResolver) {
         viewModelScope.launch {
-            _gameState.value = _gameState.value.copy(isLoading = true)
+            messageJob?.cancel()
+            _gameState.value = _gameState.value.copy(isLoading = true, message = null)
             val contacts = mutableListOf<Contact>()
             
-            val cursor = contentResolver.query(
-                ContactsContract.Contacts.CONTENT_URI,
-                arrayOf(
-                    ContactsContract.Contacts._ID,
-                    ContactsContract.Contacts.DISPLAY_NAME_PRIMARY,
-                    ContactsContract.Contacts.PHOTO_URI
-                ),
-                null,
-                null,
-                null
-            )
+            try {
+                val cursor = contentResolver.query(
+                    ContactsContract.Contacts.CONTENT_URI,
+                    arrayOf(
+                        ContactsContract.Contacts._ID,
+                        ContactsContract.Contacts.DISPLAY_NAME_PRIMARY,
+                        ContactsContract.Contacts.PHOTO_URI
+                    ),
+                    null,
+                    null,
+                    null
+                )
 
-            cursor?.use {
-                val idIndex = it.getColumnIndex(ContactsContract.Contacts._ID)
-                val nameIndex = it.getColumnIndex(ContactsContract.Contacts.DISPLAY_NAME_PRIMARY)
-                val photoIndex = it.getColumnIndex(ContactsContract.Contacts.PHOTO_URI)
+                cursor?.use {
+                    val idIndex = it.getColumnIndex(ContactsContract.Contacts._ID)
+                    val nameIndex = it.getColumnIndex(ContactsContract.Contacts.DISPLAY_NAME_PRIMARY)
+                    val photoIndex = it.getColumnIndex(ContactsContract.Contacts.PHOTO_URI)
 
-                while (it.moveToNext()) {
-                    val id = it.getString(idIndex)
-                    val name = it.getString(nameIndex)
-                    val photoUriString = it.getString(photoIndex)
-                    val photoUri = if (photoUriString != null) Uri.parse(photoUriString) else null
-                    
-                    if (name != null) {
-                        contacts.add(Contact(id, name, photoUri))
+                    while (it.moveToNext()) {
+                        val id = it.getString(idIndex)
+                        val name = it.getString(nameIndex)
+                        val photoUriString = it.getString(photoIndex)
+                        val photoUri = if (photoUriString != null) Uri.parse(photoUriString) else null
+                        
+                        if (name != null) {
+                            contacts.add(Contact(id, name, photoUri))
+                        }
                     }
                 }
-            }
 
-            // Sincronizar con Supabase Storage
-            val syncedContacts = syncWithSupabase(contacts)
-            
-            val shuffledWithPhoto = syncedContacts.filter { it.photoUri != null }.shuffled()
-            availableContacts = shuffledWithPhoto
-            
-            _gameState.value = _gameState.value.copy(
-                isLoading = false, 
-                score = 0, 
-                isGameOver = false,
-                allContacts = syncedContacts.sortedBy { it.name }
-            )
-            nextQuestion()
+                val syncedContacts = syncWithSupabase(contacts)
+                val shuffledWithPhoto = syncedContacts.filter { it.photoUri != null }.shuffled()
+                availableContacts = shuffledWithPhoto
+                
+                _gameState.value = _gameState.value.copy(
+                    isLoading = false, 
+                    score = 0, 
+                    isGameOver = false,
+                    allContacts = syncedContacts.sortedBy { it.name },
+                    currentQuestionNumber = 0,
+                    totalQuestions = shuffledWithPhoto.size
+                )
+                nextQuestion()
+            } catch (e: Exception) {
+                _gameState.value = _gameState.value.copy(isLoading = false)
+                showMessage("No hemos podido leer tus contactos. Revisa los permisos.")
+            }
         }
     }
 
@@ -88,7 +111,6 @@ class GameViewModel : ViewModel() {
             val uid = user.id
             val bucket = SupabaseConfig.client.storage.from("contacts")
             
-            // Listar archivos en la carpeta del usuario
             val remoteFiles = bucket.list(uid)
             
             localContacts.map { contact ->
@@ -96,8 +118,9 @@ class GameViewModel : ViewModel() {
                 val hasRemotePhoto = remoteFiles.any { it.name == remoteFileName }
                 
                 if (hasRemotePhoto) {
-                    val publicUrl = bucket.publicUrl("$uid/$remoteFileName")
-                    contact.copy(photoUri = Uri.parse(publicUrl))
+                    val filePath = "$uid/$remoteFileName"
+                    val signedUrl = bucket.createSignedUrl(filePath, 2.hours)
+                    contact.copy(photoUri = Uri.parse(signedUrl))
                 } else {
                     contact
                 }
@@ -114,15 +137,11 @@ class GameViewModel : ViewModel() {
         val isCorrect = guess == contactName
         
         if (isCorrect) {
-            _gameState.value = currentState.copy(
-                score = currentState.score + 1,
-                message = "¡Correcto!"
-            )
+            _gameState.value = currentState.copy(score = currentState.score + 1)
+            showMessage("¡Muy bien! Has acertado.")
             nextQuestion()
         } else {
-            _gameState.value = currentState.copy(
-                message = "¡Incorrecto! Era ${contactName}"
-            )
+            showMessage("¡Oh! Casi. Era $contactName.")
             nextQuestion()
         }
     }
@@ -144,14 +163,16 @@ class GameViewModel : ViewModel() {
             _gameState.value = _gameState.value.copy(
                 currentContact = nextContact,
                 options = options,
-                isLoading = false
+                isLoading = false,
+                currentQuestionNumber = _gameState.value.currentQuestionNumber + 1
             )
         } else {
+            val gameOverMsg = if (_gameState.value.score > 0) "¡Has terminado! Buen trabajo." else "No tienes contactos con foto para jugar."
             _gameState.value = _gameState.value.copy(
                 isGameOver = true,
-                currentContact = null,
-                message = if (_gameState.value.score > 0) "¡Juego terminado!" else "No hay contactos con foto disponibles"
+                currentContact = null
             )
+            showMessage(gameOverMsg, 5000L) // Los mensajes de fin de juego duran un poco más
         }
     }
 
@@ -163,8 +184,8 @@ class GameViewModel : ViewModel() {
                 val user = SupabaseConfig.client.auth.currentUserOrNull() ?: throw Exception("Usuario no autenticado")
                 val uid = user.id
 
-                val inputStream = contentResolver.openInputStream(newPhotoUri)
-                val bytes = inputStream?.readBytes() ?: throw Exception("No se pudo leer la imagen")
+                val inputStream = contentResolver.openInputStream(newPhotoUri) ?: throw Exception("No se pudo leer la imagen")
+                val bytes = inputStream.readBytes()
                 inputStream.close()
 
                 val fileName = "$uid/contact_$contactId.jpg"
@@ -172,28 +193,26 @@ class GameViewModel : ViewModel() {
                 
                 bucket.upload(fileName, bytes) {
                     upsert = true
+                    contentType = ContentType.Image.JPEG
                 }
 
-                val publicUrl = bucket.publicUrl(fileName)
-                val remoteUri = Uri.parse(publicUrl)
+                val signedUrl = bucket.createSignedUrl(fileName, 2.hours)
+                val remoteUri = Uri.parse(signedUrl)
 
                 val updatedContacts = _gameState.value.allContacts.map {
                     if (it.id == contactId) it.copy(photoUri = remoteUri) else it
                 }
                 
-                // Actualizar también la lista de disponibles para el juego
                 availableContacts = updatedContacts.filter { it.photoUri != null }.shuffled()
 
                 _gameState.value = _gameState.value.copy(
                     allContacts = updatedContacts.sortedBy { it.name },
-                    isLoading = false,
-                    message = "Imagen actualizada en la nube"
+                    isLoading = false
                 )
+                showMessage("Foto guardada correctamente en la nube")
             } catch (e: Exception) {
-                _gameState.value = _gameState.value.copy(
-                    isLoading = false,
-                    message = "Error al subir: ${e.message}"
-                )
+                _gameState.value = _gameState.value.copy(isLoading = false)
+                showMessage("Error al subir: ${e.message}")
             }
         }
     }
