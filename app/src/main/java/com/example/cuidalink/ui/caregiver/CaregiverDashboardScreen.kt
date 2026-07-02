@@ -155,7 +155,11 @@ fun CaregiverDashboardScreen(
             if (outsideZone) {
                 ZoneExitBanner()
             }
-            ActionButtonsRow(onOpenHistory = onOpenHistory, onOpenProfile = onOpenProfile)
+            ActionButtonsRow(
+                onOpenHistory = onOpenHistory,
+                onOpenProfile = onOpenProfile,
+                onSync = { viewModel.loadCurrentCaregiver() }
+            )
             LocationCard(
                 location = patientLocation,
                 initials = patientInitials,
@@ -379,7 +383,8 @@ private fun OnlinePill() {
 @Composable
 private fun ActionButtonsRow(
     onOpenHistory: () -> Unit,
-    onOpenProfile: () -> Unit
+    onOpenProfile: () -> Unit,
+    onSync: () -> Unit
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         ActionButton(
@@ -406,7 +411,8 @@ private fun ActionButtonsRow(
             icon = Icons.Filled.Sync,
             container = CuidaGreen,
             content = Color.White,
-            borderColor = null
+            borderColor = null,
+            onClick = onSync
         )
     }
 }

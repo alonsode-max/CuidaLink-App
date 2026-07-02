@@ -1,11 +1,14 @@
 package com.example.cuidalink.network
 
 import com.example.cuidalink.model.remote.Caretaker
+import com.example.cuidalink.model.remote.LocationHistoryInsert
+import com.example.cuidalink.model.remote.LocationHistoryRow
 import com.example.cuidalink.model.remote.Patient
 import com.example.cuidalink.model.remote.Vinculation
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.query.filter.FilterOperator
 import io.github.jan.supabase.realtime.PostgresAction
 import io.github.jan.supabase.realtime.channel
@@ -49,6 +52,16 @@ class ProfileService(
     /** Perfil del cuidador vinculado a la sesión actual. */
     suspend fun fetchCurrentCaretaker(): Caretaker? =
         currentUid()?.let { fetchCaretakerByUid(it) }
+
+    /**
+     * Paciente asociado a la sesión: el propio si el usuario es paciente, o el
+     * paciente vinculado si el usuario es cuidador. Null si no se puede resolver.
+     */
+    suspend fun fetchSessionPatient(): Patient? {
+        fetchCurrentPatient()?.let { return it }
+        val caretaker = fetchCurrentCaretaker() ?: return null
+        return caretaker.id?.let { fetchLinkedPatient(it) }
+    }
 
     /** Obtiene el cuidador vinculado a un paciente. */
     suspend fun fetchLinkedCaretaker(patientId: Long): Caretaker? {
@@ -115,6 +128,22 @@ class ProfileService(
             filter { eq(COLUMN_UID, patientUid) }
         }
     }
+
+    /** Inserta un punto en el historial de ubicaciones del paciente. */
+    suspend fun insertLocationHistory(patientId: Long, lat: Double, lng: Double) {
+        client.from(TABLE_LOCATION_HISTORY)
+            .insert(LocationHistoryInsert(patientId = patientId, lat = lat, lng = lng))
+    }
+
+    /** Últimos puntos de ubicación del paciente (más recientes primero). */
+    suspend fun fetchLocationHistory(patientId: Long, max: Long = 25): List<LocationHistoryRow> =
+        client.from(TABLE_LOCATION_HISTORY)
+            .select {
+                filter { eq("patient_id", patientId) }
+                order("created_at", Order.DESCENDING)
+                limit(max)
+            }
+            .decodeList()
 
     /** Actualiza la telemetría del paciente (batería y pasos) para el cuidador. */
     suspend fun updatePatientMetrics(patientUid: String, batteryPercent: Int, steps: Int) {
@@ -185,6 +214,7 @@ class ProfileService(
         const val TABLE_PATIENTS = "patients"
         const val TABLE_CARETAKERS = "caretakers"
         const val TABLE_VINCULATIONS = "vinculations"
+        const val TABLE_LOCATION_HISTORY = "location_history"
         const val COLUMN_UID = "uid"
         const val COLUMN_PATIENT_ID = "patient_id"
         const val COLUMN_CARETAKER_ID = "caretaker_id"

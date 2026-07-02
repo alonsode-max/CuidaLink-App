@@ -44,6 +44,27 @@ data class Patient(
     @SerialName("last_activity") val lastActivity: String? = null
 )
 
+/**
+ * DTO de la tabla `location_history`: cada punto de ubicación que el paciente ha
+ * reportado. El cuidador lee los más recientes para ver el rastro de ubicaciones.
+ */
+@Serializable
+data class LocationHistoryRow(
+    val id: Long? = null,
+    @SerialName("patient_id") val patientId: Long,
+    val lat: Double,
+    val lng: Double,
+    @SerialName("created_at") val createdAt: String? = null
+)
+
+/** Payload de inserción para `location_history`: solo las columnas que escribimos. */
+@Serializable
+data class LocationHistoryInsert(
+    @SerialName("patient_id") val patientId: Long,
+    val lat: Double,
+    val lng: Double
+)
+
 /** DTO de la tabla `vinculations`. */
 @Serializable
 data class Vinculation(
